@@ -36,3 +36,36 @@ videoTabs.forEach((tab, index) => {
     selectVideoTab(next.dataset.videoTab, true);
   });
 });
+
+// ========================================
+// APP DOWNLOAD (page "Sobre")
+// ========================================
+
+const appDownloadSection = document.getElementById('app-download');
+const isInsideApp =
+  Boolean(window.Capacitor) ||
+  (window.location.hostname === 'localhost' && window.location.protocol === 'https:') ||
+  window.matchMedia('(display-mode: standalone)').matches;
+
+// Whoever already uses the app does not need the download box.
+if (isInsideApp && appDownloadSection) appDownloadSection.classList.add('hidden');
+
+// Chrome/Edge let the page offer its own "install" button (PWA).
+const pwaInstallButton = document.getElementById('pwa-install-button');
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  pwaInstallButton?.classList.remove('hidden');
+});
+
+pwaInstallButton?.addEventListener('click', async () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  pwaInstallButton.classList.add('hidden');
+});
+
+window.addEventListener('appinstalled', () => pwaInstallButton?.classList.add('hidden'));
