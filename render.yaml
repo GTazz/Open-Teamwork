@@ -4,6 +4,8 @@ services:
     name: open-teamwork
     runtime: node
     plan: free
+    # Same region as the Turso database (AWS us-east-1) to keep queries fast.
+    region: virginia
     buildCommand: npm install --omit=dev --no-audit --no-fund
     startCommand: node server.js
     healthCheckPath: /api/health
