@@ -4,124 +4,114 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Open Teamwork</title>
-    <link rel="icon" type="image/png" href="./assets/OTW Logo.png" />
-    <meta name="theme-color" content="#0d1117" />
+    <meta name="description" content="Encontre projetos colaborativos e pessoas para construir junto, de acordo com suas habilidades." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#010409" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Open Teamwork" />
-    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="./assets/OTW Logo.png" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <script src="./js/theme.js"></script>
     <link rel="stylesheet" href="./assets/styles.css" />
   </head>
-
   <body>
+    <a class="skip-link" href="#main">Pular para o conteúdo</a>
     <header class="site-header">
       <div class="container header-inner">
         <a class="brand" href="./index.html">
-          <img
-            src="./assets/OTW Logo.png"
-            alt="Open Teamwork Logo"
-            class="brand-logo"
-          />
-          Open Teamwork
+          <img src="./assets/OTW Logo.png" alt="" class="brand-logo" width="32" height="32" />
+          <span>Open Teamwork</span>
         </a>
         <nav class="site-nav" aria-label="Navegação principal">
-          <a href="./index.html" class="nav-link active" aria-current="page"
-            >Explorar</a
-          >
-          <a href="./pages/pessoas.html" class="nav-link">Colaboradores</a>
-          <a href="./pages/meus-projetos.html" class="nav-link"
-            >Meus Projetos</a
-          >
-          <a href="./pages/perfil.html" class="nav-link">Perfil</a>
-          <a href="./pages/sobre.html" class="nav-link">Sobre</a>
+          <a href="./index.html" class="nav-link active" aria-current="page">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <span>Explorar</span>
+          </a>
+          <a href="./pages/pessoas.html" class="nav-link">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="M16 4.1a4 4 0 0 1 0 7.8"/><path d="M22 21a7 7 0 0 0-4.5-6.5"/></svg>
+            <span>Colaboradores</span>
+          </a>
+          <a href="./pages/meus-projetos.html" class="nav-link">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            <span>Meus Projetos</span>
+          </a>
+          <a href="./pages/perfil.html" class="nav-link">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+            <span>Perfil</span>
+          </a>
+          <a href="./pages/sobre.html" class="nav-link">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>
+            <span>Sobre</span>
+          </a>
         </nav>
+        <div class="header-actions">
+          <div class="theme-switcher" data-theme-switcher></div>
+        </div>
       </div>
     </header>
-    <div class="container">
-      <h1>Projetos em Destaque</h1>
-      <div class="project-search" role="search">
-        <label class="visually-hidden" for="project-search">Buscar projetos</label>
-        <input
-          type="search"
-          id="project-search"
-          placeholder="Buscar por projeto, dono, qualificação ou tag"
-          maxlength="80"
-          autocomplete="off"
-          autocapitalize="off"
-          spellcheck="false"
-        />
-      </div>
-      <p id="repo-counter" aria-live="polite">Carregando projetos...</p>
-      <div class="repo-grid" id="repo-grid">
-        <!-- Projetos serão inseridos aqui dinamicamente -->
-      </div>
-    </div>
 
-    <!-- Modal de candidatura -->
-    <div
-      id="apply-modal"
-      class="modal hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="apply-modal-title"
-    >
-      <div class="modal-content">
+    <main id="main" class="container page">
+      <div class="page-header">
+        <h1>Explorar projetos</h1>
+      </div>
+      <div class="toolbar-row">
+        <div class="search-field" role="search">
+          <label class="visually-hidden" for="project-search">Buscar projetos</label>
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M11.5 7a4.499 4.499 0 11-8.998 0A4.499 4.499 0 0111.5 7zm-.82 4.74a6 6 0 111.06-1.06l3.04 3.04a.75.75 0 11-1.06 1.06l-3.04-3.04z"></path></svg>
+          <input
+            type="search"
+            id="project-search"
+            placeholder="Buscar por projeto, dono, qualificação ou tag"
+            maxlength="80"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+          />
+        </div>
+        <p id="repo-counter" class="result-counter" aria-live="polite">Carregando projetos...</p>
+      </div>
+      <div class="repo-grid" id="repo-grid"></div>
+    </main>
+
+    <div id="apply-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="apply-modal-title">
+      <div class="modal-content" tabindex="-1">
         <div class="modal-header">
-          <h2 id="apply-modal-title" class="modal-title">
-            Escolha as qualificações
-          </h2>
+          <h2 id="apply-modal-title" class="modal-title">Escolha as qualificações</h2>
+          <button type="button" class="btn close-button" data-modal-close aria-label="Fechar">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"></path></svg>
+          </button>
         </div>
         <div class="modal-body">
-          <p id="apply-modal-repo"></p>
-          <div id="qualifications-container" class="qualifications-list">
-            <!-- Checkboxes inseridos via JS -->
-          </div>
+          <p id="apply-modal-repo" class="modal-subtitle"></p>
+          <div id="qualifications-container" class="qualifications-list"></div>
         </div>
         <div class="modal-actions">
-          <button id="cancel-apply" type="button" class="btn-secondary">
-            Cancelar
-          </button>
-          <button id="confirm-apply" type="button" class="btn-primary" disabled>
-            Confirmar
-          </button>
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancelar</button>
+          <button id="confirm-apply" type="button" class="btn btn-primary">Confirmar</button>
         </div>
       </div>
     </div>
 
-    <!-- Modal de detalhes do projeto -->
-    <div
-      id="details-modal"
-      class="modal hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="details-modal-title"
-    >
-      <div class="modal-content modal-large">
+    <div id="details-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="details-modal-title">
+      <div class="modal-content modal-large" tabindex="-1">
         <div class="modal-header">
           <h2 id="details-modal-title" class="modal-title"></h2>
-          <button id="close-details" class="close-button" aria-label="Fechar">
-            <svg viewBox="0 0 16 16" width="16" height="16">
-              <path
-                fill-rule="evenodd"
-                d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"
-              ></path>
-            </svg>
+          <button type="button" class="btn close-button" data-modal-close aria-label="Fechar">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"></path></svg>
           </button>
         </div>
-        <div class="modal-body modal-body-large" id="details-content">
-          <!-- Conteúdo inserido via JS -->
-        </div>
+        <div class="modal-body" id="details-content"></div>
         <div class="modal-actions">
-          <button id="details-apply" type="button" class="btn-primary">
-            Candidatar-se
-          </button>
+          <button id="details-apply" type="button" class="btn btn-primary apply-button">Candidatar-se</button>
         </div>
       </div>
     </div>
 
     <script src="./js/api-client.js"></script>
+    <script src="./js/ui.js"></script>
     <script src="./js/projects.js"></script>
   </body>
 </html>

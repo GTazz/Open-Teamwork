@@ -4,8 +4,7 @@ CREATE TABLE IF NOT EXISTS user (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE COLLATE NOCASE,
   -- Public, unique and immutable handle. Uniqueness (index) and immutability
-  -- (trigger) are created by ensureNickSchema() in lib/db.js so that databases
-  -- created before this column existed are upgraded the same way as new ones.
+  -- (trigger) are created by ensureNickConstraints() in lib/db.js.
   nick TEXT COLLATE NOCASE,
   password_hash TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP

@@ -1,62 +1,36 @@
 // ========================================
-// CONSTANTS AND REFERENCES
+// LOGIN / SIGN-UP / PROFILE (pages/perfil.html)
 // ========================================
 
-const profileApp = document.querySelector('[data-profile-app]');
-const authPanel = document.querySelector('[data-auth-panel]');
-const profilePanel = document.querySelector('[data-profile-panel]');
-const authMessage = document.querySelector('[data-auth-message]');
-const profileMessage = document.querySelector('[data-profile-message]');
-const loginHero = document.querySelector('[data-login-hero]');
-const profileHero = document.querySelector('[data-profile-hero]');
-const profileNameDisplay = document.querySelector('[data-profile-name-display]');
-const profileEmailDisplay = document.querySelector('[data-profile-email-display]');
-const avatarPreview = document.querySelector('[data-avatar-preview]');
-const profileHeaderAvatar = document.querySelector('[data-profile-header-avatar]');
-const logoutButton = document.querySelector('[data-logout-button]');
-const avatarRemoveButton = document.querySelector('[data-avatar-remove]');
-const avatarUploadButton = document.querySelector('[data-avatar-upload]');
-const profileResetButton = document.querySelector('[data-profile-reset]');
-const profileForm = document.querySelector('[data-profile-form]');
-const profileActions = document.querySelector('[data-profile-actions]');
+const $ = selector => document.querySelector(selector);
+
+const authPanel = $('[data-auth-panel]');
+const profilePanel = $('[data-profile-panel]');
+const authMessage = $('[data-auth-message]');
+const profileMessage = $('[data-profile-message]');
+const pageTitle = $('[data-page-title]');
+const pageLead = $('[data-page-lead]');
 const authTabs = [...document.querySelectorAll('[data-auth-tab]')];
 const authForms = [...document.querySelectorAll('[data-auth-form]')];
-const loginForm = document.querySelector('[data-auth-form="login"]');
-const signupForm = document.querySelector('[data-auth-form="signup"]');
-const loginEmailInput = document.getElementById('login-email');
-const loginPasswordInput = document.getElementById('login-password');
-const signupNameInput = document.getElementById('signup-name');
-const signupNickInput = document.getElementById('signup-nick');
-const signupNickStatus = document.getElementById('signup-nick-status');
-const profilePublicLink = document.querySelector('[data-profile-public-link]');
-const signupEmailInput = document.getElementById('signup-email');
-const signupPasswordInput = document.getElementById('signup-password');
-const signupConfirmPasswordInput = document.getElementById('signup-confirm-password');
-const profileAvatarInput = document.getElementById('profile-avatar');
-const profileNameInput = document.getElementById('profile-name');
-const profileEmailInput = document.getElementById('profile-email');
-const profilePhoneInput = document.getElementById('profile-phone');
-const profileLocationInput = document.getElementById('profile-location');
-const profileBioInput = document.getElementById('profile-bio');
-const profileGithubInput = document.getElementById('profile-github');
-const profileLinkedinInput = document.getElementById('profile-linkedin');
-const profileXInput = document.getElementById('profile-x');
-const profileWebsiteInput = document.getElementById('profile-website');
+const loginForm = $('[data-auth-form="login"]');
+const signupForm = $('[data-auth-form="signup"]');
+const profileForm = $('[data-profile-form]');
+const profileActions = $('[data-profile-actions]');
+const avatarPreview = $('[data-avatar-preview]');
+const avatarInput = $('#profile-avatar');
+const avatarUploadButton = $('[data-avatar-upload]');
+const avatarRemoveButton = $('[data-avatar-remove]');
+const nickInput = $('#signup-nick');
+const nickStatus = $('#signup-nick-status');
 
-const DEFAULT_PROFILE = {
-  avatarUrl: '',
-  bio: '',
-  contact: {
-    email: '',
-    phone: '',
-    location: '',
-  },
-  socials: {
-    github: '',
-    linkedin: '',
-    x: '',
-    website: '',
-  },
+const fields = {
+  name: $('#profile-name'),
+  bio: $('#profile-bio'),
+  contactEmail: $('#profile-email'),
+  phone: $('#profile-phone'),
+  github: $('#profile-github'),
+  linkedin: $('#profile-linkedin'),
+  website: $('#profile-website'),
 };
 
 const SOCIAL_PREFIXES = {
@@ -64,246 +38,67 @@ const SOCIAL_PREFIXES = {
   linkedin: 'https://www.linkedin.com/in/',
 };
 
-let activeAuthTab = 'login';
-let activeAvatarDataUrl = '';
-let activeSessionEmail = '';
-let initialProfileFormState = null;
-let activeAccount = null;
+const NICK_RULES_TEXT = 'O nick deve ter de 3 a 20 caracteres, usando apenas letras, números e _.';
+const NICK_DEFAULT_HINT = nickStatus ? nickStatus.innerHTML : '';
+
+/** Signed-in user as returned by the API. */
+let currentUser = null;
+/** Profile photo being edited (data URL, API URL or ''). */
+let avatarValue = '';
+/** Snapshot of the form when it was filled, to detect unsaved changes. */
+let savedFormState = '';
 
 // ========================================
-// UTILITIES
+// HELPERS
 // ========================================
 
 /**
- * Normalizes an email for comparison and storage.
+ * Website field: "seusite.com" becomes "https://seusite.com"; other schemes are refused.
  * @param {string} value
- * @returns {string}
  */
-function normalizeEmail(value) {
-  return String(value || '').trim().toLowerCase();
+function normalizeWebsite(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return safeHttpUrl(/^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`);
 }
 
 /**
- * Trims free text.
- * @param {string} value
- * @returns {string}
- */
-function normalizeText(value) {
-  return String(value || '').trim();
-}
-
-/**
- * Sanitizes a URL and allows only HTTP and HTTPS protocols.
- * @param {string} value
- * @returns {string}
- */
-function sanitizeUrl(value) {
-  const rawValue = normalizeText(value);
-  if (!rawValue) return '';
-
-  // "seusite.com" (sem protocolo) vira "https://seusite.com".
-  const withProtocol = /^[a-z][a-z0-9+.-]*:/i.test(rawValue) ? rawValue : `https://${rawValue}`;
-
-  try {
-    const parsed = new URL(withProtocol);
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      return parsed.href;
-    }
-  } catch (_) {
-    return '';
-  }
-
-  return '';
-}
-
-/**
- * Extracts the editable portion of a social URL after its fixed prefix.
+ * Part of a GitHub/LinkedIn URL after the fixed prefix ("https://github.com/ana" -> "ana").
+ * Also accepts a full URL pasted into the field.
  * @param {string} value
  * @param {string} prefix
- * @returns {string}
  */
-function getSocialSuffix(value, prefix) {
-  const rawValue = normalizeText(value);
-  if (!rawValue) return '';
-
-  const normalizedPrefix = prefix.toLowerCase();
-  if (rawValue.toLowerCase().startsWith(normalizedPrefix)) {
-    return rawValue.slice(prefix.length).replace(/^\/+|\/+$/g, '');
-  }
-
+function socialSuffix(value, prefix) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.toLowerCase().startsWith(prefix.toLowerCase())) return raw.slice(prefix.length).replace(/^\/+|\/+$/g, '');
   try {
-    const parsed = new URL(rawValue);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return '';
-    }
-
-    if (prefix === SOCIAL_PREFIXES.linkedin) {
-      const pathname = parsed.pathname.replace(/^\/+|\/+$/g, '');
-      if (pathname.toLowerCase().startsWith('in/')) {
-        return pathname.slice(3).replace(/^\/+|\/+$/g, '');
-      }
-      return pathname;
-    }
-
-    return parsed.pathname.replace(/^\/+|\/+$/g, '');
-  } catch (_) {
-    return rawValue.replace(/^\/+|\/+$/g, '');
+    const parsed = new URL(raw);
+    const path = parsed.pathname.replace(/^\/+|\/+$/g, '');
+    return prefix === SOCIAL_PREFIXES.linkedin && path.toLowerCase().startsWith('in/') ? path.slice(3) : path;
+  } catch {
+    return raw.replace(/^\/+|\/+$/g, '');
   }
 }
 
-/**
- * Builds a complete social URL from the editable portion.
- * @param {string} suffix
- * @param {string} prefix
- * @returns {string}
- */
-function buildSocialUrl(suffix, prefix) {
-  const normalizedSuffix = normalizeText(suffix).replace(/^\/+|\/+$/g, '');
-  if (!normalizedSuffix) return '';
-  return `${prefix}${normalizedSuffix}`;
+/** @param {string} value @param {string} prefix */
+function socialUrl(value, prefix) {
+  const suffix = socialSuffix(value, prefix);
+  return suffix ? prefix + suffix : '';
 }
 
-/**
- * Builds a normalized form state to detect changes.
- * @param {any} account
- * @returns {string}
- */
-function getProfileFormState(account) {
-  return JSON.stringify({
-    name: normalizeText(profileNameInput?.value),
-    contactEmail: normalizeEmail(profileEmailInput?.value),
-    phone: normalizeText(profilePhoneInput?.value),
-    // Removed field: preserve the existing value to avoid false change detection.
-    location: normalizeText(account?.profile?.contact?.location || ''),
-    bio: normalizeText(profileBioInput?.value),
-    github: buildSocialUrl(getSocialSuffix(profileGithubInput?.value || '', SOCIAL_PREFIXES.github), SOCIAL_PREFIXES.github),
-    linkedin: buildSocialUrl(getSocialSuffix(profileLinkedinInput?.value || '', SOCIAL_PREFIXES.linkedin), SOCIAL_PREFIXES.linkedin),
-    website: sanitizeUrl(profileWebsiteInput?.value || ''),
-    avatarUrl: activeAvatarDataUrl,
-  });
-}
-
-/**
- * Shows or hides save/discard actions based on form changes.
- */
-function updateProfileActionsVisibility() {
-  if (!profileActions) return;
-
-  const account = getAccount(activeSessionEmail);
-  if (!account || !initialProfileFormState) {
-    profileActions.classList.add('hidden');
-    return;
-  }
-
-  const hasChanges = getProfileFormState(account) !== initialProfileFormState;
-  profileActions.classList.toggle('hidden', !hasChanges);
-}
-
-/** Returns the active account kept in memory during the session. */
-function getAccounts() {
-  return activeAccount
-    ? { [normalizeEmail(activeAccount.email)]: activeAccount }
-    : {};
-}
-
-/** Updates the active account in memory. */
-function saveAccounts(accounts) {
-  const account = accounts[normalizeEmail(activeSessionEmail)];
-  if (account) activeAccount = account;
-}
-
-/**
- * Recupera o e-mail autenticado atual.
- * @returns {string}
- */
-function getSessionEmail() {
-  return normalizeEmail(activeSessionEmail);
-}
-
-/**
- * Saves the current session.
- * @param {string} email
- */
-function setSessionEmail(email) {
-  activeSessionEmail = normalizeEmail(email);
-}
-
-/**
- * Removes the current session.
- */
-function clearSession() {
-  activeSessionEmail = '';
-  activeAccount = null;
-  clearApiToken();
-}
-
-/**
- * Creates an empty profile structure.
- * @returns {{avatarUrl: string, bio: string, contact: {phone: string, location: string}, socials: {github: string, linkedin: string, x: string, website: string}}}
- */
-function createEmptyProfile() {
+/** Values that would be sent to the API. */
+function readForm() {
   return {
-    avatarUrl: DEFAULT_PROFILE.avatarUrl,
-    bio: DEFAULT_PROFILE.bio,
-    contact: {
-      email: DEFAULT_PROFILE.contact.email,
-      phone: DEFAULT_PROFILE.contact.phone,
-      location: DEFAULT_PROFILE.contact.location,
-    },
-    socials: {
-      github: DEFAULT_PROFILE.socials.github,
-      linkedin: DEFAULT_PROFILE.socials.linkedin,
-      x: DEFAULT_PROFILE.socials.x,
-      website: DEFAULT_PROFILE.socials.website,
-    },
+    name: fields.name.value.trim(),
+    contactEmail: fields.contactEmail.value.trim().toLowerCase(),
+    phone: fields.phone.value.trim(),
+    bio: fields.bio.value.trim(),
+    avatarUrl: avatarValue,
+    githubUrl: socialUrl(fields.github.value, SOCIAL_PREFIXES.github),
+    linkedinUrl: socialUrl(fields.linkedin.value, SOCIAL_PREFIXES.linkedin),
+    websiteUrl: normalizeWebsite(fields.website.value),
   };
-}
-
-/**
- * Creates an account structure.
- * @param {{name: string, email: string, password: string}} payload
- * @returns {{name: string, email: string, password: string, profile: ReturnType<typeof createEmptyProfile>}}
- */
-function createAccount(payload) {
-  return {
-    name: normalizeText(payload.name),
-    email: normalizeEmail(payload.email),
-    password: String(payload.password || ''),
-    profile: createEmptyProfile(),
-  };
-}
-
-/**
- * Converts the API user (name, profile.contact_email, profile.phone...) into
- * the account structure used by this screen.
- * @param {any} user
- * @returns {ReturnType<typeof createAccount>}
- */
-function accountFromApiUser(user) {
-  const profile = user.profile || {};
-  const account = createAccount({
-    name: profile.name || user.name,
-    email: user.email,
-    password: '',
-  });
-  account.id = user.id;
-  account.nick = user.nick || '';
-  account.profile = {
-    avatarUrl: profile.avatar_url || '',
-    bio: profile.bio || '',
-    contact: {
-      email: profile.contact_email || user.email,
-      phone: profile.phone || '',
-      location: '',
-    },
-    socials: {
-      github: profile.github_url || '',
-      linkedin: profile.linkedin_url || '',
-      x: '',
-      website: profile.website_url || '',
-    },
-  };
-  return account;
 }
 
 /**
@@ -348,539 +143,271 @@ function resizeImageToDataUrl(file, maxSize = 256) {
 }
 
 /**
- * Retrieves an account by email.
- * @param {string} email
- * @returns {any}
- */
-function getAccount(email) {
-  const accounts = getAccounts();
-  return accounts[normalizeEmail(email)] || null;
-}
-
-/**
- * Saves an account and updates the index if the email changed.
- * @param {any} account
- * @param {string} previousEmail
- */
-function saveAccount(account, previousEmail) {
-  const accounts = getAccounts();
-  const normalizedPrevious = normalizeEmail(previousEmail || account.email);
-  const normalizedCurrent = normalizeEmail(account.email);
-
-  if (normalizedPrevious && normalizedPrevious !== normalizedCurrent) {
-    delete accounts[normalizedPrevious];
-  }
-
-  accounts[normalizedCurrent] = account;
-  saveAccounts(accounts);
-
-  if (getSessionEmail() === normalizedPrevious) {
-    setSessionEmail(normalizedCurrent);
-  }
-}
-
-/**
- * Returns fallback avatar initials.
- * @param {string} name
- * @param {string} email
- * @returns {string}
- */
-function getInitials(name, email) {
-  const source = normalizeText(name) || normalizeEmail(email);
-  if (!source) return 'OT';
-
-  const words = source.split(/\s+/).filter(Boolean);
-  if (words.length === 1) {
-    return words[0].slice(0, 2).toUpperCase();
-  }
-
-  return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
-}
-
-/**
- * Displays a feedback message.
- * @param {HTMLElement | null} element
+ * @param {HTMLElement} element
  * @param {string} message
  * @param {'success' | 'error'} type
  */
 function showMessage(element, message, type) {
-  if (!element) return;
-
   element.textContent = message;
-  element.classList.remove('hidden', 'success', 'error');
-  element.classList.add(type);
+  element.className = `form-message ${type}`;
 }
 
-/**
- * Clears and hides a feedback message.
- * @param {HTMLElement | null} element
- */
+/** @param {HTMLElement} element */
 function clearMessage(element) {
-  if (!element) return;
-
   element.textContent = '';
-  element.classList.add('hidden');
-  element.classList.remove('success', 'error');
+  element.className = 'form-message hidden';
 }
 
-/**
- * Switches the hero between login and profile mode.
- * @param {'login' | 'profile'} mode
- */
-function setHeroMode(mode) {
-  const isLoginMode = mode === 'login';
-  document.title = `${isLoginMode ? 'Login' : 'Perfil'} · Open Teamwork`;
+// ========================================
+// VIEWS
+// ========================================
 
-  loginHero?.classList.toggle('hidden', !isLoginMode);
-  profileHero?.classList.toggle('hidden', isLoginMode);
-}
-
-/**
- * Switches the displayed authentication form.
- * @param {'login' | 'signup'} mode
- */
+/** @param {'login' | 'signup'} mode */
 function setAuthTab(mode) {
-  activeAuthTab = mode;
-
   authTabs.forEach(tab => {
     const isActive = tab.dataset.authTab === mode;
     tab.classList.toggle('active', isActive);
     tab.setAttribute('aria-selected', String(isActive));
   });
-
-  authForms.forEach(form => {
-    const isVisible = form.dataset.authForm === mode;
-    form.classList.toggle('hidden', !isVisible);
-  });
-
+  authForms.forEach(form => form.classList.toggle('hidden', form.dataset.authForm !== mode));
   clearMessage(authMessage);
 }
 
-/**
- * Updates the avatar preview.
- * @param {string} dataUrl
- * @param {string} name
- * @param {string} email
- */
-function renderAvatarPreview(dataUrl, name, email) {
-  if (!avatarPreview) return;
-
-  if (dataUrl) {
-    avatarPreview.innerHTML = `
-      <img src="${escapeHtmlText(dataUrl)}" alt="Foto de perfil atual" />
-    `;
-    avatarRemoveButton?.classList.remove('hidden');
-    if (avatarUploadButton) {
-      avatarUploadButton.textContent = 'Trocar imagem';
-    }
-    return;
-  }
-
-  avatarPreview.innerHTML = `
-    <div class="avatar-fallback">
-      <svg viewBox="0 0 16 16" width="14" height="14" class="person-icon" aria-hidden="true" focusable="false">
-        <path fill-rule="evenodd" d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.061 3.073a4 4 0 10-5.123 0 6.004 6.004 0 00-3.431 5.142.75.75 0 001.498.07 4.5 4.5 0 018.99 0 .75.75 0 101.498-.07 6.005 6.005 0 00-3.432-5.142z"></path>
-      </svg>
-      <span>Sem foto</span>
-    </div>
-  `;
-  avatarRemoveButton?.classList.add('hidden');
-  if (avatarUploadButton) {
-    avatarUploadButton.textContent = 'Enviar imagem';
-  }
+function renderAvatarPreview() {
+  avatarPreview.innerHTML = avatarValue
+    ? renderUserAvatar(avatarValue, 128)
+    : `<span class="avatar-empty">${icon('person', 48)}<span>Sem foto</span></span>`;
+  avatarRemoveButton.classList.toggle('hidden', !avatarValue);
+  avatarUploadButton.textContent = avatarValue ? 'Trocar foto' : 'Enviar foto';
 }
 
-/**
- * Populates the profile form with user data.
- * @param {any} account
- */
-function populateProfileForm(account) {
-  const profile = account.profile || createEmptyProfile();
-  activeAvatarDataUrl = profile.avatarUrl || '';
-
-  if (profileAvatarInput) profileAvatarInput.value = '';
-  if (profileNameInput) profileNameInput.value = account.name || '';
-  if (profileEmailInput) profileEmailInput.value = profile.contact?.email || '';
-  if (profilePhoneInput) profilePhoneInput.value = profile.contact?.phone || '';
-  if (profileLocationInput) profileLocationInput.value = profile.contact?.location || '';
-  if (profileBioInput) profileBioInput.value = profile.bio || '';
-  if (profileGithubInput) {
-    profileGithubInput.value = getSocialSuffix(profile.socials?.github || '', SOCIAL_PREFIXES.github);
-  }
-  if (profileLinkedinInput) {
-    profileLinkedinInput.value = getSocialSuffix(profile.socials?.linkedin || '', SOCIAL_PREFIXES.linkedin);
-  }
-  if (profileXInput) profileXInput.value = profile.socials?.x || '';
-  if (profileWebsiteInput) profileWebsiteInput.value = profile.socials?.website || '';
-
-  renderAvatarPreview(activeAvatarDataUrl, account.name, account.email);
-  initialProfileFormState = getProfileFormState(account);
-  updateProfileActionsVisibility();
+function updateUnsavedState() {
+  const changed = Boolean(currentUser) && JSON.stringify(readForm()) !== savedFormState;
+  profileActions.classList.toggle('hidden', !changed);
 }
 
-/**
- * Updates the profile header and state.
- * @param {any} account
- */
-function populateProfileSummary(account) {
-  if (profileNameDisplay) profileNameDisplay.textContent = account.name || 'Perfil';
-  if (profileEmailDisplay) profileEmailDisplay.textContent = account.email || '';
-  if (profilePublicLink) {
-    profilePublicLink.textContent = account.nick ? `@${account.nick}` : '';
-    if (account.nick) profilePublicLink.href = `./usuario.html?nick=${encodeURIComponent(account.nick)}`;
-  }
-  // Same avatar that other users see next to the project owner's name.
-  if (profileHeaderAvatar) {
-    profileHeaderAvatar.innerHTML = renderUserAvatar(account.profile?.avatarUrl || '', 64);
-  }
-}
-
-/**
- * Displays the login area.
- */
 function showLoginView() {
-  activeAuthTab = 'login';
-  authPanel?.classList.remove('hidden');
-  profilePanel?.classList.add('hidden');
-  profileActions?.classList.add('hidden');
-  initialProfileFormState = null;
-  setHeroMode('login');
+  currentUser = null;
+  document.title = 'Entrar · Open Teamwork';
+  pageTitle.textContent = 'Entrar';
+  pageLead.textContent = 'Entre na sua conta ou crie uma nova para fazer parte da comunidade.';
+  pageLead.classList.remove('hidden');
+  authPanel.classList.remove('hidden');
+  profilePanel.classList.add('hidden');
   setAuthTab('login');
 }
 
-/**
- * Displays the profile area.
- * @param {any} account
- */
-function showProfileView(account) {
-  authPanel?.classList.add('hidden');
-  profilePanel?.classList.remove('hidden');
-  setHeroMode('profile');
-  populateProfileSummary(account);
-  populateProfileForm(account);
-  clearMessage(profileMessage);
+/** @param {any} user */
+function showProfileView(user) {
+  currentUser = user;
+  const profile = user.profile || {};
+  document.title = 'Perfil · Open Teamwork';
+  pageTitle.textContent = 'Meu perfil';
+  pageLead.classList.add('hidden');
+  authPanel.classList.add('hidden');
+  profilePanel.classList.remove('hidden');
+
+  $('[data-profile-header-avatar]').innerHTML = renderUserAvatar(profile.avatar_url || '', 64);
+  $('[data-profile-name-display]').textContent = profile.name || user.name || 'Perfil';
+  $('[data-profile-email-display]').textContent = user.email || '';
+  const publicLink = $('[data-profile-public-link]');
+  publicLink.textContent = user.nick ? `@${user.nick}` : '';
+  publicLink.href = user.nick ? `./usuario.html?nick=${encodeURIComponent(user.nick)}` : './pessoas.html';
+
+  fields.name.value = profile.name || user.name || '';
+  fields.bio.value = profile.bio || '';
+  fields.contactEmail.value = profile.contact_email || user.email || '';
+  fields.phone.value = profile.phone || '';
+  fields.github.value = socialSuffix(profile.github_url, SOCIAL_PREFIXES.github);
+  fields.linkedin.value = socialSuffix(profile.linkedin_url, SOCIAL_PREFIXES.linkedin);
+  fields.website.value = profile.website_url || '';
+  avatarValue = profile.avatar_url || '';
+  avatarInput.value = '';
+
+  renderAvatarPreview();
+  savedFormState = JSON.stringify(readForm());
+  updateUnsavedState();
 }
 
 // ========================================
-// AUTHENTICATION HANDLERS
+// AUTHENTICATION
 // ========================================
 
-/**
- * Processes the login form submission.
- * @param {SubmitEvent} event
- */
-async function handleLoginSubmit(event) {
+/** @param {string} path @param {object} body @param {HTMLFormElement} form */
+async function authenticate(path, body, form) {
+  const submit = form.querySelector('[type="submit"]');
+  submit.disabled = true;
+  try {
+    const result = await apiRequest(path, { method: 'POST', body: JSON.stringify(body) });
+    setApiToken(result.token);
+    form.reset();
+    clearMessage(authMessage);
+    showProfileView(result.user);
+  } catch (error) {
+    showMessage(authMessage, error.message, 'error');
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+loginForm.addEventListener('submit', event => {
   event.preventDefault();
-  clearMessage(authMessage);
-
-  const email = normalizeEmail(loginEmailInput?.value);
-  const password = String(loginPasswordInput?.value || '');
-
+  const email = $('#login-email').value.trim().toLowerCase();
+  const password = $('#login-password').value;
   if (!email || !password) {
     showMessage(authMessage, 'Preencha e-mail e senha para entrar.', 'error');
     return;
   }
+  authenticate('/auth/login', { email, password }, loginForm);
+});
 
-  try {
-    const result = await apiRequest('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-    setApiToken(result.token);
-    activeAccount = accountFromApiUser(result.user);
-    setSessionEmail(activeAccount.email);
-    loginForm?.reset();
-    showProfileView(activeAccount);
-  } catch (error) {
-    showMessage(authMessage, error.message, 'error');
+signupForm.addEventListener('submit', event => {
+  event.preventDefault();
+  const name = $('#signup-name').value.trim();
+  const nick = nickInput.value.trim().toLowerCase().replace(/^@/, '');
+  const email = $('#signup-email').value.trim().toLowerCase();
+  const password = $('#signup-password').value;
+  const confirmPassword = $('#signup-confirm-password').value;
+
+  let error = '';
+  if (!name || !nick || !email || !password || !confirmPassword) error = 'Preencha todos os campos para criar a conta.';
+  else if (!/^[a-z0-9_]{3,20}$/.test(nick)) error = NICK_RULES_TEXT;
+  else if (password.length < 6) error = 'A senha deve ter pelo menos 6 caracteres.';
+  else if (password !== confirmPassword) error = 'A confirmação de senha não confere.';
+  if (error) {
+    showMessage(authMessage, error, 'error');
+    return;
   }
-}
+  authenticate('/auth/register', { name, nick, email, password }, signupForm);
+});
 
-const NICK_RULES_TEXT =
-  'O nick deve ter de 3 a 20 caracteres, usando apenas letras, números e _.';
-const NICK_DEFAULT_HINT =
-  '3 a 20 caracteres: letras, números e _. É único e não poderá ser alterado depois.';
+// While typing, tell the person whether the nick is free.
 let nickCheckTimer = null;
 let nickCheckId = 0;
-
-/**
- * Tells the person, while typing, whether the nick is free.
- */
-function scheduleNickCheck() {
-  if (!signupNickInput || !signupNickStatus) return;
+nickInput.addEventListener('input', () => {
   clearTimeout(nickCheckTimer);
-  const nick = signupNickInput.value.trim().toLowerCase().replace(/^@/, '');
-  signupNickStatus.className = 'input-hint';
+  const nick = nickInput.value.trim().toLowerCase().replace(/^@/, '');
+  nickStatus.className = 'input-hint';
 
   if (!nick) {
-    signupNickStatus.textContent = NICK_DEFAULT_HINT;
+    nickStatus.innerHTML = NICK_DEFAULT_HINT;
     return;
   }
   if (!/^[a-z0-9_]{3,20}$/.test(nick)) {
-    signupNickStatus.textContent = NICK_RULES_TEXT;
-    signupNickStatus.classList.add('nick-bad');
+    nickStatus.textContent = NICK_RULES_TEXT;
+    nickStatus.classList.add('is-bad');
     return;
   }
 
-  signupNickStatus.textContent = 'Verificando...';
+  nickStatus.textContent = 'Verificando...';
   const checkId = ++nickCheckId;
   nickCheckTimer = setTimeout(async () => {
     try {
       const result = await apiRequest(`/nicks/${encodeURIComponent(nick)}`);
       if (checkId !== nickCheckId) return;
-      signupNickStatus.textContent = result.available ? `@${nick} está disponível.` : result.message;
-      signupNickStatus.classList.add(result.available ? 'nick-ok' : 'nick-bad');
+      nickStatus.textContent = result.available ? `@${nick} está disponível.` : result.message;
+      nickStatus.classList.add(result.available ? 'is-good' : 'is-bad');
     } catch {
-      if (checkId === nickCheckId) signupNickStatus.textContent = NICK_DEFAULT_HINT;
+      if (checkId === nickCheckId) nickStatus.innerHTML = NICK_DEFAULT_HINT;
     }
   }, 400);
-}
+});
 
-/**
- * Processes the registration form submission.
- * @param {SubmitEvent} event
- */
-async function handleSignupSubmit(event) {
-  event.preventDefault();
-  clearMessage(authMessage);
-
-  const name = normalizeText(signupNameInput?.value);
-  const nick = String(signupNickInput?.value || '').trim().toLowerCase().replace(/^@/, '');
-  const email = normalizeEmail(signupEmailInput?.value);
-  const password = String(signupPasswordInput?.value || '');
-  const confirmPassword = String(signupConfirmPasswordInput?.value || '');
-
-  if (!name || !nick || !email || !password || !confirmPassword) {
-    showMessage(authMessage, 'Preencha todos os campos para criar a conta.', 'error');
-    return;
-  }
-
-  if (!/^[a-z0-9_]{3,20}$/.test(nick)) {
-    showMessage(authMessage, NICK_RULES_TEXT, 'error');
-    return;
-  }
-
-  if (password.length < 6) {
-    showMessage(authMessage, 'A senha deve ter pelo menos 6 caracteres.', 'error');
-    return;
-  }
-
-  if (password !== confirmPassword) {
-    showMessage(authMessage, 'A confirmação de senha não confere.', 'error');
-    return;
-  }
-
-  try {
-    const result = await apiRequest('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ name, nick, email, password }),
-    });
-    setApiToken(result.token);
-    activeAccount = accountFromApiUser(result.user);
-    setSessionEmail(activeAccount.email);
-    signupForm?.reset();
-    showProfileView(activeAccount);
-  } catch (error) {
-    showMessage(authMessage, error.message, 'error');
-  }
-}
+authTabs.forEach(tab => tab.addEventListener('click', () => setAuthTab(tab.dataset.authTab)));
 
 // ========================================
-// PROFILE HANDLERS
+// PROFILE
 // ========================================
 
-/**
- * Updates the profile photo from the selected file.
- * @param {Event} event
- */
-async function handleAvatarChange(event) {
-  const input = /** @type {HTMLInputElement | null} */ (event.target);
-  const file = input?.files?.[0];
+avatarInput.addEventListener('change', async () => {
+  const file = avatarInput.files?.[0];
   if (!file) return;
-
   if (!file.type.startsWith('image/')) {
     showMessage(profileMessage, 'Escolha um arquivo de imagem.', 'error');
     return;
   }
-
   try {
-    activeAvatarDataUrl = await resizeImageToDataUrl(file);
+    avatarValue = await resizeImageToDataUrl(file);
     clearMessage(profileMessage);
-    renderAvatarPreview(
-      activeAvatarDataUrl,
-      profileNameInput?.value || '',
-      profileEmailInput?.value || '',
-    );
-    updateProfileActionsVisibility();
+    renderAvatarPreview();
+    updateUnsavedState();
   } catch (error) {
     showMessage(profileMessage, error.message, 'error');
   }
-}
+});
 
-/**
- * Removes the current profile photo.
- */
-function handleAvatarRemove() {
-  activeAvatarDataUrl = '';
-  if (profileAvatarInput) profileAvatarInput.value = '';
-  renderAvatarPreview(
-    activeAvatarDataUrl,
-    profileNameInput?.value || '',
-    profileEmailInput?.value || '',
-  );
-  updateProfileActionsVisibility();
-}
+// The file input is hidden, so the label also works with the keyboard.
+avatarUploadButton.addEventListener('keydown', event => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  avatarInput.click();
+});
 
-/**
- * Resets the profile form from the active account.
- */
-function handleProfileReset() {
-  const account = getAccount(activeSessionEmail);
-  if (!account) {
-    renderApp();
-    return;
-  }
+avatarRemoveButton.addEventListener('click', () => {
+  avatarValue = '';
+  avatarInput.value = '';
+  renderAvatarPreview();
+  updateUnsavedState();
+});
 
-  populateProfileSummary(account);
-  populateProfileForm(account);
+fields.name.addEventListener('input', () => {
+  $('[data-profile-name-display]').textContent = fields.name.value.trim() || 'Perfil';
+});
+
+profileForm.addEventListener('input', updateUnsavedState);
+profileForm.addEventListener('change', updateUnsavedState);
+
+$('[data-profile-reset]').addEventListener('click', () => {
+  if (currentUser) showProfileView(currentUser);
   clearMessage(profileMessage);
-}
+});
 
-/**
- * Logs out the current user.
- */
-function handleLogout() {
-  clearApiToken();
-  clearSession();
-  activeSessionEmail = '';
-  activeAvatarDataUrl = '';
-  activeAuthTab = 'login';
-  if (profileForm) profileForm.reset();
-  clearMessage(profileMessage);
-  renderApp();
-}
-
-/**
- * Saves profile changes.
- * @param {SubmitEvent} event
- */
-async function handleProfileSubmit(event) {
+profileForm.addEventListener('submit', async event => {
   event.preventDefault();
   clearMessage(profileMessage);
-
-  const currentAccount = getAccount(activeSessionEmail);
-  if (!currentAccount) {
-    handleLogout();
-    return;
-  }
-
-  const name = normalizeText(profileNameInput?.value);
-  const contactEmail = normalizeEmail(profileEmailInput?.value);
-  const phone = normalizeText(profilePhoneInput?.value);
-  const location = normalizeText(profileLocationInput?.value || currentAccount.profile?.contact?.location || '');
-  const bio = normalizeText(profileBioInput?.value);
-  const githubSuffix = getSocialSuffix(profileGithubInput?.value || '', SOCIAL_PREFIXES.github);
-  const linkedinSuffix = getSocialSuffix(profileLinkedinInput?.value || '', SOCIAL_PREFIXES.linkedin);
-  const github = buildSocialUrl(githubSuffix, SOCIAL_PREFIXES.github);
-  const linkedin = buildSocialUrl(linkedinSuffix, SOCIAL_PREFIXES.linkedin);
-  const x = sanitizeUrl(profileXInput?.value || '');
-  const website = sanitizeUrl(profileWebsiteInput?.value || '');
-
-  if (!name || !contactEmail) {
+  const values = readForm();
+  if (!values.name || !values.contactEmail) {
     showMessage(profileMessage, 'Nome e e-mail de contato são obrigatórios.', 'error');
     return;
   }
-
+  const submit = profileForm.querySelector('[type="submit"]');
+  submit.disabled = true;
   try {
-    const result = await apiRequest('/auth/me', {
-      method: 'PUT',
-      body: JSON.stringify({
-        name,
-        contactEmail,
-        phone,
-        bio,
-        avatarUrl: activeAvatarDataUrl,
-        githubUrl: github,
-        linkedinUrl: linkedin,
-        websiteUrl: website,
-      }),
-    });
-    activeAccount = accountFromApiUser(result.user);
-    setSessionEmail(activeAccount.email);
-    showProfileView(activeAccount);
+    const result = await apiRequest('/auth/me', { method: 'PUT', body: JSON.stringify(values) });
+    showProfileView(result.user);
     showMessage(profileMessage, 'Perfil atualizado com sucesso.', 'success');
   } catch (error) {
     showMessage(profileMessage, error.message, 'error');
+  } finally {
+    submit.disabled = false;
   }
-}
+});
+
+$('[data-logout-button]').addEventListener('click', () => {
+  clearApiToken();
+  profileForm.reset();
+  clearMessage(profileMessage);
+  showLoginView();
+});
+
+// Warn before leaving with unsaved changes.
+window.addEventListener('beforeunload', event => {
+  if (!profileActions.classList.contains('hidden')) event.preventDefault();
+});
 
 // ========================================
-// INITIALIZATION
+// START
 // ========================================
 
-/**
- * Renders the correct screen for the current session.
- */
-async function renderApp() {
+(async function start() {
   if (!getApiToken()) {
-    clearSession();
     showLoginView();
     return;
   }
-
   try {
-    const result = await apiRequest('/auth/me');
-    activeAccount = accountFromApiUser(result.user);
-    setSessionEmail(activeAccount.email);
-    showProfileView(activeAccount);
-  } catch (_) {
-    clearSession();
+    showProfileView((await apiRequest('/auth/me')).user);
+  } catch {
+    clearApiToken();
     showLoginView();
   }
-}
-
-/**
- * Registers profile screen events.
- */
-function bindEvents() {
-  authTabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      setAuthTab(/** @type {'login' | 'signup'} */ (tab.dataset.authTab || 'login'));
-    });
-  });
-
-  loginForm?.addEventListener('submit', handleLoginSubmit);
-  signupForm?.addEventListener('submit', handleSignupSubmit);
-  signupNickInput?.addEventListener('input', scheduleNickCheck);
-  profileForm?.addEventListener('submit', handleProfileSubmit);
-  logoutButton?.addEventListener('click', handleLogout);
-  avatarRemoveButton?.addEventListener('click', handleAvatarRemove);
-  // The file input is hidden, so let the label work with the keyboard too.
-  avatarUploadButton?.addEventListener('keydown', event => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    profileAvatarInput?.click();
-  });
-  profileResetButton?.addEventListener('click', handleProfileReset);
-  profileAvatarInput?.addEventListener('change', handleAvatarChange);
-  profileForm?.addEventListener('input', updateProfileActionsVisibility);
-  profileForm?.addEventListener('change', updateProfileActionsVisibility);
-
-  profileNameInput?.addEventListener('input', () => {
-    renderAvatarPreview(activeAvatarDataUrl, profileNameInput.value, profileEmailInput?.value || '');
-    if (profileNameDisplay) profileNameDisplay.textContent = normalizeText(profileNameInput.value) || 'Perfil';
-  });
-
-  profileEmailInput?.addEventListener('input', () => {
-    renderAvatarPreview(activeAvatarDataUrl, profileNameInput?.value || '', profileEmailInput.value);
-    if (profileEmailDisplay) {
-      const account = getAccount(activeSessionEmail);
-      profileEmailDisplay.textContent = account?.email || '';
-    }
-  });
-}
-
-if (profileApp) {
-  bindEvents();
-  renderApp();
-}
+})();

@@ -325,6 +325,13 @@ test('candidaturas: fluxo completo, vagas e permissões', async () => {
 
   const mine = (await api(`/api/projects/${project.id}/my-application`, { token: bob.token })).body.application;
   assert.equal(mine.status, 'pending');
+
+  // The project list carries the viewer's status, so the page needs no extra request per card.
+  const listed = (await api('/api/projects', { token: bob.token })).body.projects;
+  assert.equal(listed.find(p => p.id === project.id).myApplicationStatus, 'pending');
+  assert.ok(listed.filter(p => p.id !== project.id).every(p => p.myApplicationStatus === null));
+  const anonymousList = (await api('/api/projects')).body.projects;
+  assert.ok(anonymousList.every(p => !('myApplicationStatus' in p)));
   assert.deepEqual(mine.qualificationIds.sort(), [dev.id, designer.id].sort());
 
   assert.equal((await api(`/api/projects/${project.id}/applications`, { token: bob.token })).status, 404);

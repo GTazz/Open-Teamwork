@@ -1,416 +1,238 @@
 // ========================================
-// CONSTANTS AND CONFIGURATION
+// EXPLORE (index.html): project list, search, details and applications
 // ========================================
 
-// Card display configuration
-const CONFIG = {
-  maxCards: null // null = no limit
-};
-
-// ========================================
-// STATE
-// ========================================
+/** Qualifications shown on each card; the rest are counted in a "+N" chip. */
+const CARD_QUALIFICATIONS = 3;
 
 let projectsData = [];
+let projectSearchQuery = '';
+let applyingProjectId = null;
 
-/**
- * Checks whether an authenticated session is active.
- * @returns {boolean}
- */
-function isUserAuthenticated() {
-  return Boolean(getApiToken());
+const repoGrid = document.getElementById('repo-grid');
+const repoCounter = document.getElementById('repo-counter');
+const searchInput = document.getElementById('project-search');
+const applyModal = document.getElementById('apply-modal');
+const detailsModal = document.getElementById('details-modal');
+
+/** @param {number} id */
+function findProject(id) {
+  return projectsData.find(project => project.id === id);
 }
 
 /**
- * Redirects the user to the login/profile page.
+ * Open qualifications first, full ones last.
+ * @param {{filled:number,total:number}[]} qualifications
  */
-function redirectToLogin() {
-  window.location.href = './pages/perfil.html';
-}
-
-// ========================================
-// UTILITIES
-// ========================================
-
-/**
- * Formats large numbers (for example, 1200 -> 1.2k)
- */
-function formatNumber(num) {
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'k';
-  }
-  return num.toString();
-}
-
-/**
- * Sorts qualifications by available, applied, and full status.
- * @param {{name:string, filled:number, total:number}[]} qualifications
- * @param {Set<string>} appliedSet
- * @returns {Array}
- */
-function sortQualifications(qualifications, appliedSet) {
-  return [...qualifications].sort((a, b) => {
-    const aFull = a.filled >= a.total;
-    const bFull = b.filled >= b.total;
-    const aApplied = appliedSet.has(a.name);
-    const bApplied = appliedSet.has(b.name);
-
-    const getPriority = (isFull, isApplied) => {
-      if (isFull) return 2;
-      if (isApplied) return 1;
-      return 0;
-    };
-
-    return getPriority(aFull, aApplied) - getPriority(bFull, bApplied);
-  });
-}
-
-// ========================================
-// CARD RENDERING
-// ========================================
-
-/**
- * Book icon used next to project names.
- * @param {number} size
- * @returns {string}
- */
-function repoIconSvg(size) {
-  return `<svg class="repo-icon" height="${size}" width="${size}" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-    <path fill-rule="evenodd" d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9zm10.5-1V9h-8c-.356 0-.694.074-1 .208V2.5a1 1 0 011-1h8zM5 12.25v3.25a.25.25 0 00.4.2l1.45-1.087a.25.25 0 01.3 0L8.6 15.7a.25.25 0 00.4-.2v-3.25a.25.25 0 00-.25-.25h-3.5a.25.25 0 00-.25.25z"></path>
-  </svg>`;
+function sortQualifications(qualifications) {
+  return [...(qualifications || [])].sort((a, b) => Number(a.filled >= a.total) - Number(b.filled >= b.total));
 }
 
 /**
  * Owner's contact e-mail as a mailto link. The API only sends it to people
  * who are signed in, so for visitors this renders nothing.
  * @param {string} email
- * @param {string} className
- * @returns {string}
  */
-function renderOwnerEmail(email, className) {
-  const value = String(email || '').trim();
-  if (!/^[^\s@<>"']+@[^\s@<>"']+$/.test(value)) return '';
+function renderOwnerEmail(email) {
+  if (!looksLikeEmail(email)) return '';
+  const value = String(email).trim();
   return `
-    <a class="owner-email ${className}" href="mailto:${escapeHtmlText(value)}" title="Enviar e-mail para o dono do projeto">
-      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path fill-rule="evenodd" d="M1.75 2A1.75 1.75 0 000 3.75v.736a.75.75 0 000 .027v7.737C0 13.216.784 14 1.75 14h12.5A1.75 1.75 0 0016 12.25v-8.5A1.75 1.75 0 0014.25 2H1.75zM14.5 4.07v-.32a.25.25 0 00-.25-.25H1.75a.25.25 0 00-.25.25v.32L8 7.88l6.5-3.81zm-13 1.74v6.441c0 .138.112.25.25.25h12.5a.25.25 0 00.25-.25V5.809L8.38 9.397a.75.75 0 01-.76 0L1.5 5.809z"></path></svg>
-      <span>${escapeHtmlText(value)}</span>
-    </a>
-  `;
+    <a class="owner-email" href="mailto:${escapeHtmlText(value)}" title="Enviar e-mail para o dono do projeto">
+      ${icon('mail', 13)}<span>${escapeHtmlText(value)}</span>
+    </a>`;
 }
 
 /**
- * Creates project card HTML.
- * @param {{id:number,name:string,owner:string,description:string,url:string,qualifications:Array,tags?:Array}} repo
- * @returns {string}
+ * Label and style of the apply button for the signed-in person's status.
+ * @param {object} project
  */
-function createRepoCard(repo) {
-  const applied = new Set();
-  const hasApplied = repo.applicationStatus
-    ? repo.applicationStatus === 'pending'
-    : applied.size > 0;
-  const isAuthenticated = isUserAuthenticated();
+function applyButtonState(project) {
+  if (!isUserAuthenticated()) {
+    return { label: 'Candidatar-se', iconName: 'plus', className: 'is-disabled', title: 'Entre na sua conta para se candidatar.' };
+  }
+  if (project.ownerId === getCurrentUserId()) {
+    return { label: 'Seu projeto', iconName: 'repo', className: 'own', title: 'Gerencie este projeto em "Meus Projetos".' };
+  }
+  switch (project.myApplicationStatus) {
+    case 'pending':
+      return { label: 'Ver candidatura', iconName: 'pencil', className: 'applied', title: 'Candidatura enviada. Você pode alterá-la.' };
+    case 'accepted':
+      return { label: 'Você participa', iconName: 'check', className: 'accepted', title: 'Sua candidatura foi aprovada.' };
+    default:
+      return { label: 'Candidatar-se', iconName: 'plus', className: '', title: '' };
+  }
+}
 
-  const sortedQualifications = sortQualifications(repo.qualifications, applied);
-  const safeUrl = safeHttpUrl(repo.url);
-  const safeName = escapeHtmlText(repo.name);
-  const nameHtml = safeUrl
-    ? `<a href="${escapeHtmlText(safeUrl)}" class="repo-name" rel="noopener noreferrer">${safeName}</a>`
-    : `<span class="repo-name">${safeName}</span>`;
+/** @param {object} project */
+function renderApplyButtonContent(project) {
+  const state = applyButtonState(project);
+  return `${icon(state.iconName, 14)}<span>${state.label}</span>`;
+}
+
+/** @param {HTMLButtonElement} button @param {object} project */
+function updateApplyButton(button, project) {
+  const state = applyButtonState(project);
+  button.className = `btn btn-primary apply-button ${state.className}`.trim();
+  button.title = state.title;
+  button.innerHTML = renderApplyButtonContent(project);
+}
+
+/**
+ * Card shown in the project grid.
+ * @param {object} project
+ */
+function createProjectCard(project) {
+  const url = safeHttpUrl(project.url);
+  const name = escapeHtmlText(project.name);
+  const state = applyButtonState(project);
+  const qualifications = sortQualifications(project.qualifications);
+  const hidden = qualifications.length - CARD_QUALIFICATIONS;
 
   return `
-    <div class="repo-card" data-repo-id="${Number(repo.id)}">
-      <div class="repo-header">
-        <svg class="repo-icon" height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
-          <path fill-rule="evenodd" d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9zm10.5-1V9h-8c-.356 0-.694.074-1 .208V2.5a1 1 0 011-1h8zM5 12.25v3.25a.25.25 0 00.4.2l1.45-1.087a.25.25 0 01.3 0L8.6 15.7a.25.25 0 00.4-.2v-3.25a.25.25 0 00-.25-.25h-3.5a.25.25 0 00-.25.25z"></path>
-        </svg>
-        ${nameHtml}
-      </div>
+    <article class="repo-card" data-project-id="${Number(project.id)}">
+      <header class="repo-header">
+        ${icon('repo', 16, 'repo-icon')}
+        ${url
+          ? `<a href="${escapeHtmlText(url)}" class="repo-name" target="_blank" rel="noopener noreferrer">${name}</a>`
+          : `<span class="repo-name">${name}</span>`}
+      </header>
       <div class="repo-owner">
-        ${renderOwnerChip(repo.ownerNick, repo.owner, repo.ownerAvatarUrl, 18)}
+        ${renderOwnerChip(project.ownerNick, project.owner, project.ownerAvatarUrl, 20)}
+        ${renderOwnerEmail(project.ownerEmail)}
       </div>
-      ${renderOwnerEmail(repo.ownerEmail, 'repo-owner-email')}
-      <div class="repo-description">
-        ${escapeHtmlText(repo.description)}
+      <p class="repo-description">${escapeHtmlText(project.description)}</p>
+      <div class="chip-list repo-qualifications">
+        ${qualifications.slice(0, CARD_QUALIFICATIONS).map(renderQualificationChip).join('')}
+        ${hidden > 0 ? `<span class="more-chip" title="Veja todas em &quot;Saiba mais&quot;">+${hidden}</span>` : ''}
       </div>
-      <div class="repo-bottom">
-        <div class="repo-qualifications">
-          ${sortedQualifications.map(q => {
-            const disabledClass = applied.has(q.name) ? ' disabled' : '';
-            const isFull = q.filled >= q.total;
-            const fullClass = isFull ? ' full' : '';
-            return `
-              <div class="qualification-item-card${disabledClass}${fullClass}">
-                <svg viewBox="0 0 16 16" width="14" height="14" class="person-icon">
-                  <path fill-rule="evenodd" d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.061 3.073a4 4 0 10-5.123 0 6.004 6.004 0 00-3.431 5.142.75.75 0 001.498.07 4.5 4.5 0 018.99 0 .75.75 0 101.498-.07 6.005 6.005 0 00-3.432-5.142z"></path>
-                </svg>
-                <span class="qualification-name">${escapeHtmlText(q.name)}</span>
-                <span class="qualification-count">${q.filled}/${q.total}</span>
-              </div>
-            `;
-          }).join('')}
-        </div>
-        <div class="repo-footer">
-          <button class="saiba-mais-button" data-action="details">
-            <svg viewBox="0 0 16 16" width="16" height="16">
-              <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75zM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"></path>
-            </svg>
-            Saiba mais
-          </button>
-          <button class="apply-button${hasApplied && isAuthenticated ? ' applied' : ''}${isAuthenticated ? '' : ' is-disabled'}" data-action="apply" aria-disabled="${String(!isAuthenticated)}" title="${isAuthenticated ? '' : 'Faça login para se candidatar.'}">
-            ${isAuthenticated && hasApplied
-              ? `<svg viewBox="0 0 16 16" width="16" height="16"><path fill-rule="evenodd" d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25a1.75 1.75 0 01.445-.758l8.61-8.61zm1.414 1.06a.25.25 0 00-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 000-.354l-1.086-1.086zM11.189 6.25L9.75 4.81l-6.286 6.287a.25.25 0 00-.064.108l-.558 1.953 1.953-.558a.249.25 0 00.108-.064l6.286-6.286z"></path></svg> Modificar Candidatura`
-              : `<svg viewBox="0 0 16 16" width="16" height="16"><path fill-rule="evenodd" d="M1.5 8a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0zM8 0a8 8 0 100 16A8 8 0 008 0zm.75 4.75a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z"></path></svg> Candidatar-se`}
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
+      <footer class="repo-footer">
+        <button type="button" class="btn btn-outline" data-action="details">${icon('info', 14)}<span>Saiba mais</span></button>
+        <button type="button" class="btn btn-primary apply-button ${state.className}" data-action="apply" title="${escapeHtmlText(state.title)}">
+          ${renderApplyButtonContent(project)}
+        </button>
+      </footer>
+    </article>`;
 }
 
 // ========================================
-// ESTADO E MODAIS
+// DETAILS MODAL
 // ========================================
 
-let currentRepoId = null;
-let currentDetailsRepoId = null;
+/** @param {number} projectId */
+function openDetailsModal(projectId) {
+  const project = findProject(projectId);
+  if (!project) return;
 
-/**
- * Abre o modal de detalhes de um projeto
- * @param {number} repoId
- */
-function openDetailsModal(repoId) {
-  currentDetailsRepoId = repoId;
-  const repo = projectsData.find(r => r.id === repoId);
-  if (!repo) return;
-
-  const modal = document.getElementById('details-modal');
-  const modalTitle = document.getElementById('details-modal-title');
-  const detailsContent = document.getElementById('details-content');
-  const applyBtn = document.getElementById('details-apply');
-
-  modalTitle.innerHTML = `${repoIconSvg(20)}<span>${escapeHtmlText(repo.name)}</span>`;
-
-  const applied = new Set();
-  const hasApplied = repo.applicationStatus
-    ? repo.applicationStatus === 'pending'
-    : applied.size > 0;
-  const sortedQualifications = sortQualifications(repo.qualifications, applied);
-  const detailsUrl = safeHttpUrl(repo.url);
-
-  detailsContent.innerHTML = `
+  const url = safeHttpUrl(project.url);
+  document.getElementById('details-modal-title').innerHTML =
+    `${icon('repo', 20, 'repo-icon')}<span>${escapeHtmlText(project.name)}</span>`;
+  document.getElementById('details-content').innerHTML = `
     <div class="details-header">
       <div class="details-owner">
-        ${renderOwnerChip(repo.ownerNick, repo.owner, repo.ownerAvatarUrl, 24)}
-        ${renderOwnerEmail(repo.ownerEmail, 'details-owner-email')}
+        ${renderOwnerChip(project.ownerNick, project.owner, project.ownerAvatarUrl, 24)}
+        ${renderOwnerEmail(project.ownerEmail)}
       </div>
-      ${detailsUrl ? `<a href="${escapeHtmlText(detailsUrl)}" class="details-link" target="_blank" rel="noopener noreferrer">
-        URL
-        <svg viewBox="0 0 16 16" width="14" height="14">
-          <path fill-rule="evenodd" d="M10.604 1h4.146a.25.25 0 01.25.25v4.146a.25.25 0 01-.427.177L13.03 4.03 9.28 7.78a.75.75 0 01-1.06-1.06l3.75-3.75-1.543-1.543A.25.25 0 0110.604 1zM3.75 2A1.75 1.75 0 002 3.75v8.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0014 12.25v-3.5a.75.75 0 00-1.5 0v3.5a.25.25 0 01-.25.25h-8.5a.25.25 0 01-.25-.25v-8.5a.25.25 0 01.25-.25h3.5a.75.75 0 000-1.5h-3.5z"></path>
-        </svg>
-      </a>` : ''}
+      ${url ? `<a href="${escapeHtmlText(url)}" class="details-link" target="_blank" rel="noopener noreferrer">Abrir projeto ${icon('external', 14)}</a>` : ''}
     </div>
-
-    <div class="details-section">
+    <section class="details-section">
       <h3>Descrição</h3>
-      <p class="details-description">${escapeHtmlText(repo.description)}</p>
-    </div>
+      <p class="details-description">${escapeHtmlText(project.description)}</p>
+    </section>
+    <section class="details-section">
+      <h3>Qualificações necessárias</h3>
+      <div class="chip-list">${sortQualifications(project.qualifications).map(renderQualificationChip).join('')}</div>
+    </section>
+    ${(project.tags || []).length ? `
+      <section class="details-section">
+        <h3>Tags</h3>
+        <div class="chip-list">${project.tags.map(renderTag).join('')}</div>
+      </section>` : ''}`;
 
-    <div class="details-section">
-      <h3>Qualificações Necessárias</h3>
-      <div class="details-qualifications">
-        ${sortedQualifications.map(q => {
-          const disabledClass = applied.has(q.name) ? ' disabled' : '';
-          const isFull = q.filled >= q.total;
-          const fullClass = isFull ? ' full' : '';
-          return `
-            <div class="qualification-item-card${disabledClass}${fullClass}">
-              <svg viewBox="0 0 16 16" width="14" height="14" class="person-icon">
-                <path fill-rule="evenodd" d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.061 3.073a4 4 0 10-5.123 0 6.004 6.004 0 00-3.431 5.142.75.75 0 001.498.07 4.5 4.5 0 018.99 0 .75.75 0 101.498-.07 6.005 6.005 0 00-3.432-5.142z"></path>
-              </svg>
-              <span class="qualification-name">${escapeHtmlText(q.name)}</span>
-              <span class="qualification-count">${q.filled}/${q.total}</span>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    </div>
-
-    <div class="details-section">
-      <h3>Tags</h3>
-      <div class="details-qualifications">
-        ${(repo.tags || []).map(tag => `<span class="topic-tag">${escapeHtmlText(tag)}</span>`).join('')}
-      </div>
-    </div>
-  `;
-
-  applyBtn.onclick = () => {
-    closeDetailsModal();
-    openApplyModal(repoId);
-  };
-
-  if (hasApplied && isUserAuthenticated()) {
-    applyBtn.innerHTML = `
-      <svg viewBox="0 0 16 16" width="16" height="16">
-        <path fill-rule="evenodd" d="M11.013 1.427a1.75 1.75 0 012.474 0l1.086 1.086a1.75 1.75 0 010 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 01-.927-.928l.929-3.25a1.75 1.75 0 01.445-.758l8.61-8.61zm1.414 1.06a.25.25 0 00-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 000-.354l-1.086-1.086zM11.189 6.25L9.75 4.81l-6.286 6.287a.25.25 0 00-.064.108l-.558 1.953 1.953-.558a.249.249 0 00.108-.064l6.286-6.286z"></path>
-      </svg>
-      Modificar Candidatura
-    `;
-    applyBtn.classList.add('applied');
-  } else {
-    applyBtn.disabled = false;
-    applyBtn.title = '';
-    applyBtn.innerHTML = `
-      <svg viewBox="0 0 16 16" width="16" height="16">
-        <path fill-rule="evenodd" d="M1.5 8a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0zM8 0a8 8 0 100 16A8 8 0 008 0zm.75 4.75a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z"></path>
-      </svg>
-      Candidatar-se
-    `;
-    applyBtn.classList.remove('applied');
-  }
-
-  document.getElementById('close-details').onclick = closeDetailsModal;
-  modal.onclick = (e) => { if (e.target === modal) closeDetailsModal(); };
-  document.addEventListener('keydown', escCloseDetailsHandler);
-
-  modal.classList.remove('hidden');
-}
-
-/**
- * Fecha modal de detalhes ao pressionar ESC
- * @param {KeyboardEvent} e
- */
-function escCloseDetailsHandler(e) {
-  if (e.key === 'Escape') closeDetailsModal();
-}
-
-/**
- * Fecha o modal de detalhes e limpa handlers/estado
- */
-function closeDetailsModal() {
-  const modal = document.getElementById('details-modal');
-  modal.classList.add('hidden');
-  document.removeEventListener('keydown', escCloseDetailsHandler);
-  currentDetailsRepoId = null;
+  const applyButton = document.getElementById('details-apply');
+  applyButton.dataset.projectId = String(project.id);
+  updateApplyButton(applyButton, project);
+  openModal(detailsModal);
 }
 
 // ========================================
-// MODAL DE CANDIDATURA
+// APPLY MODAL
 // ========================================
 
-/**
- * Opens the application modal for a repository.
- * @param {number} repoId
- */
-async function openApplyModal(repoId) {
+/** @param {number} projectId */
+async function openApplyModal(projectId) {
   if (!isUserAuthenticated()) {
     redirectToLogin();
     return;
   }
+  const project = findProject(projectId);
+  if (!project) return;
+  if (project.ownerId === getCurrentUserId()) {
+    window.location.href = pageUrl('meus-projetos');
+    return;
+  }
 
-  currentRepoId = repoId;
-  const repo = projectsData.find(r => r.id === repoId);
-  if (!repo) return;
-
-  const modal = document.getElementById('apply-modal');
-  const repoTitle = document.getElementById('apply-modal-repo');
-  const container = document.getElementById('qualifications-container');
-  const confirmBtn = document.getElementById('confirm-apply');
-
-  repoTitle.textContent = `${repo.owner} / ${repo.name}`;
-
-  let currentApplication = null;
+  let application;
   try {
-    currentApplication = (await apiRequest(`/projects/${repoId}/my-application`)).application;
+    application = (await apiRequest(`/projects/${projectId}/my-application`)).application;
   } catch (error) {
     alert(error.message);
     return;
   }
-  const alreadyApplied = new Set(currentApplication?.qualificationIds || []);
-  const rejectedQualificationIds = new Set(currentApplication?.rejectedQualificationIds || []);
-  const acceptedQualificationIds = new Set(currentApplication?.acceptedQualificationIds || []);
-  repo.applicationStatus = currentApplication?.status || null;
-  container.innerHTML = repo.qualifications.map(q => {
+
+  applyingProjectId = projectId;
+  const pending = new Set(application?.qualificationIds || []);
+  const rejected = new Set(application?.rejectedQualificationIds || []);
+  const accepted = new Set(application?.acceptedQualificationIds || []);
+
+  document.getElementById('apply-modal-repo').textContent = `${project.owner} / ${project.name}`;
+  document.getElementById('qualifications-container').innerHTML = project.qualifications.map(q => {
     const isFull = q.filled >= q.total;
-    const isRejected = rejectedQualificationIds.has(q.id);
-    const isAccepted = acceptedQualificationIds.has(q.id);
-    const isBlocked = isRejected || isAccepted;
-    const checkedAttr = !isBlocked && alreadyApplied.has(q.id) ? 'checked' : '';
-    const disabledAttr = isFull || isBlocked ? 'disabled' : '';
+    const isRejected = rejected.has(q.id);
+    const isAccepted = accepted.has(q.id);
+    const locked = isFull || isRejected || isAccepted;
+    const note = isAccepted ? '<span class="qualification-note accepted">Aprovada</span>'
+      : isRejected ? '<span class="qualification-note rejected">Recusada</span>'
+        : isFull ? '<span class="qualification-note">Sem vagas</span>' : '';
     return `
-      <label class="qualification-item${isFull ? ' full' : ''}${isRejected ? ' rejected' : ''}${isAccepted ? ' accepted' : ''}">
-        <input type="checkbox" name="qualification" value="${escapeHtmlText(q.name)}" data-qualification-id="${Number(q.id)}" ${checkedAttr} ${disabledAttr} />
-        <svg viewBox="0 0 16 16" width="14" height="14" class="person-icon">
-          <path fill-rule="evenodd" d="M10.5 5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zm.061 3.073a4 4 0 10-5.123 0 6.004 6.004 0 00-3.431 5.142.75.75 0 001.498.07 4.5 4.5 0 018.99 0 .75.75 0 101.498-.07 6.005 6.005 0 00-3.432-5.142z"></path>
-        </svg>
+      <label class="qualification-option${locked ? ' locked' : ''}${isRejected ? ' rejected' : ''}${isAccepted ? ' accepted' : ''}">
+        <input type="checkbox" data-qualification-id="${Number(q.id)}"
+          ${!isRejected && !isAccepted && pending.has(q.id) ? 'checked' : ''} ${locked ? 'disabled' : ''} />
+        ${icon('person', 14, 'person-icon')}
         <span class="qualification-name">${escapeHtmlText(q.name)}</span>
-        <span class="qualification-count">${q.filled}/${q.total}</span>
-        ${isRejected ? '<span class="qualification-rejected">Recusada</span>' : ''}
-        ${isAccepted ? '<span class="qualification-accepted">Aprovada</span>' : ''}
-      </label>
-    `;
+        ${note}
+        <span class="qualification-count">${Number(q.filled) || 0}/${Number(q.total) || 0}</span>
+      </label>`;
   }).join('');
 
-  confirmBtn.disabled = false;
-  confirmBtn.onclick = confirmApply;
-  document.getElementById('cancel-apply').onclick = closeApplyModal;
-  modal.onclick = (e) => { if (e.target === modal) closeApplyModal(); };
-  document.addEventListener('keydown', escCloseHandler);
-
-  modal.classList.remove('hidden');
+  openModal(applyModal);
 }
 
-/**
- * Fecha modal de candidatura ao pressionar ESC
- * @param {KeyboardEvent} e
- */
-function escCloseHandler(e) {
-  if (e.key === 'Escape') closeApplyModal();
-}
-
-/**
- * Fecha o modal de candidatura e limpa handlers/estado
- */
-function closeApplyModal() {
-  const modal = document.getElementById('apply-modal');
-  modal.classList.add('hidden');
-  document.removeEventListener('keydown', escCloseHandler);
-  currentRepoId = null;
-}
-
-/**
- * Confirms the application and updates the UI and counters.
- */
 async function confirmApply() {
-  if (currentRepoId == null) return;
-  const container = document.getElementById('qualifications-container');
-  const selected = [...container.querySelectorAll('input[type="checkbox"]')]
-    .filter(cb => cb.checked)
-    .map(cb => cb.value);
+  if (applyingProjectId == null) return;
+  const qualificationIds = [...document.querySelectorAll('#qualifications-container input:checked')]
+    .map(input => Number(input.dataset.qualificationId));
 
-  const qualificationIds = [...container.querySelectorAll('input[type="checkbox"]')]
-    .filter(cb => cb.checked)
-    .map(cb => Number(cb.dataset.qualificationId));
-
+  const confirmButton = document.getElementById('confirm-apply');
+  confirmButton.disabled = true;
   try {
-    await apiRequest(`/projects/${currentRepoId}/applications`, {
+    await apiRequest(`/projects/${applyingProjectId}/applications`, {
       method: 'POST',
       body: JSON.stringify({ qualificationIds }),
     });
   } catch (error) {
     alert(error.message);
     return;
+  } finally {
+    confirmButton.disabled = false;
   }
 
-  const repo = projectsData.find(r => r.id === currentRepoId);
-  if (repo) repo.applicationStatus = qualificationIds.length ? 'pending' : null;
-  const card = document.querySelector(`.repo-card[data-repo-id="${currentRepoId}"]`);
-  if (card && repo) {
-    const newCardHTML = createRepoCard(repo);
-    card.outerHTML = newCardHTML;
+  const project = findProject(applyingProjectId);
+  if (project && project.myApplicationStatus !== 'accepted') {
+    project.myApplicationStatus = qualificationIds.length ? 'pending' : null;
   }
-
-  closeApplyModal();
+  const card = repoGrid.querySelector(`[data-project-id="${applyingProjectId}"]`);
+  if (card && project) card.outerHTML = createProjectCard(project);
+  closeModal(applyModal);
 }
 
 // ========================================
@@ -423,12 +245,9 @@ async function confirmApply() {
 // present for signed-in people).
 const SEARCH_WEIGHTS = { name: 1000, host: 100, qualification: 10, tag: 1 };
 
-let projectSearchQuery = '';
-
 /**
  * Lowercases and strips accents so "programacao" finds "Programação".
  * @param {string} text
- * @returns {string}
  */
 function normalizeSearchText(text) {
   return String(text || '')
@@ -439,12 +258,8 @@ function normalizeSearchText(text) {
 }
 
 /**
- * Score of one search term inside one field: a word that starts with the term
- * counts a bit more than a match in the middle of a word.
- * @param {string} field Already normalized.
- * @param {string} term Already normalized.
- * @param {number} weight
- * @returns {number}
+ * Score of one term inside one field: a word that starts with the term counts
+ * a bit more than a match in the middle of a word.
  */
 function scoreField(field, term, weight) {
   const index = field.indexOf(term);
@@ -454,17 +269,16 @@ function scoreField(field, term, weight) {
 }
 
 /**
- * Relevance of a project for the query; 0 means it does not match.
- * Every word of the query has to match somewhere.
- * @param {object} repo
- * @param {string[]} terms Normalized words of the query.
- * @returns {number}
+ * Relevance of a project for the query; 0 means no match. Every word of the
+ * query has to match somewhere.
+ * @param {object} project
+ * @param {string[]} terms
  */
-function scoreProject(repo, terms) {
-  const name = normalizeSearchText(repo.name);
-  const host = normalizeSearchText(`${repo.owner} ${repo.ownerNick} @${repo.ownerNick} ${repo.ownerEmail || ''}`);
-  const qualifications = (repo.qualifications || []).map(q => normalizeSearchText(q.name));
-  const tags = (repo.tags || []).map(normalizeSearchText);
+function scoreProject(project, terms) {
+  const name = normalizeSearchText(project.name);
+  const host = normalizeSearchText(`${project.owner} ${project.ownerNick} @${project.ownerNick} ${project.ownerEmail || ''}`);
+  const qualifications = (project.qualifications || []).map(q => normalizeSearchText(q.name));
+  const tags = (project.tags || []).map(normalizeSearchText);
 
   let total = 0;
   for (const term of terms) {
@@ -481,112 +295,78 @@ function scoreProject(repo, terms) {
   return total;
 }
 
-/**
- * Projects that match the current search, most relevant first. Without a
- * search the original order (newest first) is kept.
- * @returns {object[]}
- */
+/** Projects that match the search, most relevant first (newest first without a search). */
 function getVisibleProjects() {
   const terms = normalizeSearchText(projectSearchQuery).split(/\s+/).filter(Boolean);
   if (!terms.length) return projectsData;
   return projectsData
-    .map((repo, index) => ({ repo, index, score: scoreProject(repo, terms) }))
+    .map((project, index) => ({ project, index, score: scoreProject(project, terms) }))
     .filter(entry => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.index - b.index)
-    .map(entry => entry.repo);
+    .map(entry => entry.project);
 }
 
-/**
- * Draws the project grid and the counter for the current search.
- */
 function renderProjects() {
   const matches = getVisibleProjects();
-  const projectsToShow = CONFIG.maxCards ? matches.slice(0, CONFIG.maxCards) : matches;
-  const projGrid = document.getElementById('repo-grid');
-  const counter = document.getElementById('repo-counter');
   const query = projectSearchQuery.trim();
+  const total = projectsData.length;
 
-  if (!projectsToShow.length && query) {
-    projGrid.innerHTML = `
-      <div class="empty-state grid-span-all">
-        <h3>Nenhum projeto encontrado</h3>
-        <p>Tente buscar pelo nome do projeto, por quem criou, por uma qualificação ou por uma tag.</p>
-      </div>
-    `;
+  if (!total) {
+    repoGrid.innerHTML = renderEmptyState('Nenhum projeto ainda', 'Crie o primeiro em "Meus Projetos".');
+  } else if (!matches.length) {
+    repoGrid.innerHTML = renderEmptyState(
+      'Nenhum projeto encontrado',
+      'Tente buscar pelo nome do projeto, por quem criou, por uma qualificação ou por uma tag.'
+    );
   } else {
-    projGrid.innerHTML = projectsToShow.map(repo => createRepoCard(repo)).join('');
+    repoGrid.innerHTML = matches.map(createProjectCard).join('');
   }
 
-  if (counter) {
-    const total = projectsData.length;
-    counter.textContent = query
-      ? (projectsToShow.length
-        ? `${projectsToShow.length} de ${total} ${total === 1 ? 'projeto' : 'projetos'} para "${query}"`
-        : `Nenhum projeto encontrado para "${query}".`)
-      : `Exibindo ${projectsToShow.length} de ${total} projetos`;
-  }
+  repoCounter.textContent = query
+    ? (matches.length
+      ? `${matches.length} de ${total} ${total === 1 ? 'projeto' : 'projetos'} para "${query}"`
+      : `Nenhum projeto encontrado para "${query}".`)
+    : `${total} ${total === 1 ? 'projeto' : 'projetos'}`;
 }
 
 // ========================================
-// LOADING AND INITIALIZATION
+// INITIALIZATION
 // ========================================
 
-/**
- * Carrega e renderiza os projetos
- */
 async function loadProjects() {
   try {
-    const response = await apiRequest('/projects');
-    const projects = response.projects;
-    if (isUserAuthenticated()) {
-      await Promise.all(projects.map(async repo => {
-        const result = await apiRequest(`/projects/${repo.id}/my-application`);
-        repo.applicationStatus = result.application?.status || null;
-      }));
-    }
-    projectsData = projects;
+    projectsData = (await apiRequest('/projects')).projects;
     renderProjects();
-
-    const projGrid = document.getElementById('repo-grid');
-    projGrid.addEventListener('click', (e) => {
-      const btn = e.target.closest('button.saiba-mais-button, button.apply-button');
-      if (!btn) return;
-      const card = e.target.closest('.repo-card');
-      if (!card) return;
-      const repoId = parseInt(card.getAttribute('data-repo-id'), 10);
-
-      if (btn.classList.contains('saiba-mais-button')) {
-        openDetailsModal(repoId);
-      } else if (btn.classList.contains('apply-button')) {
-        if (!isUserAuthenticated()) {
-          redirectToLogin();
-          return;
-        }
-        openApplyModal(repoId);
-      }
-    });
-
-    const searchInput = document.getElementById('project-search');
-    let searchTimer = null;
-    searchInput?.addEventListener('input', () => {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
-        projectSearchQuery = searchInput.value;
-        renderProjects();
-      }, 150);
-    });
-
-    console.log(`✅ ${projects.length} projetos carregados com sucesso!`);
   } catch (error) {
-    console.error('❌ Erro ao carregar projetos:', error);
-    const repoGrid = document.getElementById('repo-grid');
-    repoGrid.innerHTML = `
-      <div class="empty-state error grid-span-all">
-        <h3>Erro ao carregar projetos</h3>
-        <p>Por favor, tente novamente mais tarde.</p>
-      </div>
-    `;
+    repoCounter.textContent = '';
+    repoGrid.innerHTML = renderEmptyState('Erro ao carregar projetos', 'Tente novamente em instantes.', true);
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadProjects);
+repoGrid.addEventListener('click', event => {
+  const button = event.target.closest('button[data-action]');
+  const card = event.target.closest('.repo-card');
+  if (!button || !card) return;
+  const projectId = Number(card.dataset.projectId);
+  if (button.dataset.action === 'details') openDetailsModal(projectId);
+  else openApplyModal(projectId);
+});
+
+document.getElementById('details-apply').addEventListener('click', event => {
+  const projectId = Number(event.currentTarget.dataset.projectId);
+  closeModal(detailsModal);
+  openApplyModal(projectId);
+});
+
+document.getElementById('confirm-apply').addEventListener('click', confirmApply);
+
+let searchTimer = null;
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    projectSearchQuery = searchInput.value;
+    renderProjects();
+  }, 150);
+});
+
+loadProjects();

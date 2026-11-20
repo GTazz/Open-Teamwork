@@ -128,16 +128,16 @@ async function findSessionUser(token) {
 const authRequired = handle(async (req, res, next) => {
   const [scheme, token] = (req.get('authorization') || '').split(' ');
   if (scheme !== 'Bearer' || !token) {
-    return sendError(res, 401, 'Authentication required.');
+    return sendError(res, 401, 'Faça login para continuar.');
   }
 
   let user;
   try {
     user = await findSessionUser(token);
   } catch {
-    return sendError(res, 401, 'Invalid or expired token.');
+    return sendError(res, 401, 'Sua sessão expirou. Entre novamente.');
   }
-  if (!user) return sendError(res, 401, 'Invalid session.');
+  if (!user) return sendError(res, 401, 'Sessão inválida. Entre novamente.');
   req.user = user;
   return next();
 });
@@ -241,12 +241,18 @@ function parseTags(value) {
   }
 }
 
+// A pending application is what the person can still change, so it wins.
+const APPLICATION_STATUS_PRIORITY = { pending: 0, accepted: 1, rejected: 2 };
+
 /**
- * Projects plus their qualifications in TWO queries (not 1 + N): with a
- * remote database every query is a network round trip.
+ * Projects plus their qualifications in a fixed number of queries (not 1 + N):
+ * with a remote database every query is a network round trip.
  * @param {string} whereSql Condition on alias "p", e.g. "WHERE p.id = ?".
+ * @param {unknown[]} args
+ * @param {{includeOwnerContact?: boolean, viewerId?: number|null}} options
+ *   viewerId adds "myApplicationStatus" (that person's status in each project).
  */
-async function listProjects(whereSql = '', args = [], { includeOwnerContact = false } = {}) {
+async function listProjects(whereSql = '', args = [], { includeOwnerContact = false, viewerId = null } = {}) {
   const projects = await db.all(
     `SELECT p.*, pr.name AS owner, pr.avatar_url AS owner_avatar, u.nick AS owner_nick,
             pr.contact_email AS owner_contact_email
@@ -266,6 +272,18 @@ async function listProjects(whereSql = '', args = [], { includeOwnerContact = fa
      ORDER BY project_id, id`,
     args
   );
+
+  const viewerStatus = new Map();
+  if (viewerId) {
+    const rows = await db.all('SELECT project_id, status FROM application WHERE user_id = ?', [viewerId]);
+    rows.forEach(({ project_id: projectId, status }) => {
+      const current = viewerStatus.get(projectId);
+      if (!current || APPLICATION_STATUS_PRIORITY[status] < APPLICATION_STATUS_PRIORITY[current]) {
+        viewerStatus.set(projectId, status);
+      }
+    });
+  }
+
   const byProject = new Map();
   qualifications.forEach(({ project_id: projectId, ...qualification }) => {
     if (!byProject.has(projectId)) byProject.set(projectId, []);
@@ -285,6 +303,7 @@ async function listProjects(whereSql = '', args = [], { includeOwnerContact = fa
     url: project.url || '',
     tags: parseTags(project.tags),
     qualifications: byProject.get(project.id) || [],
+    ...(viewerId ? { myApplicationStatus: viewerStatus.get(project.id) || null } : {}),
   }));
 }
 
@@ -331,15 +350,15 @@ function validateProjectInput(body) {
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   const description = typeof body.description === 'string' ? body.description.trim() : '';
   if (!name || !description) {
-    return 'Name and description are required.';
+    return 'Nome e descrição são obrigatórios.';
   }
   if (name.length > LIMITS.name || description.length > LIMITS.description) {
-    return 'Name or description is too long.';
+    return 'Nome ou descrição muito longos.';
   }
 
   const url = body.url == null ? '' : String(body.url).trim();
   if (url && (url.length > LIMITS.url || normalizeHttpUrl(url) === null)) {
-    return 'URL must start with http:// or https://.';
+    return 'A URL deve começar com http:// ou https://.';
   }
 
   const qualifications = Array.isArray(body.qualifications) ? body.qualifications : [];
@@ -356,11 +375,11 @@ function validateProjectInput(body) {
       Number(q.total) > LIMITS.slots
     )
   ) {
-    return 'Provide at least one valid qualification.';
+    return 'Informe pelo menos uma qualificação válida.';
   }
   const names = qualifications.map(q => q.name.trim());
   if (new Set(names).size !== names.length) {
-    return 'Qualification names must be different from each other.';
+    return 'As qualificações devem ter nomes diferentes.';
   }
   return null;
 }
@@ -381,14 +400,14 @@ app.post('/api/auth/register', handle(async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
   if (name.length < 2 || !email.includes('@') || password.length < 6) {
-    return sendError(res, 400, 'Name, a valid email, and a password with at least 6 characters are required.');
+    return sendError(res, 400, 'Informe nome, um e-mail válido e uma senha com pelo menos 6 caracteres.');
   }
   if (
     name.length > PROFILE_LIMITS.name ||
     email.length > PROFILE_LIMITS.contactEmail ||
     password.length > PROFILE_LIMITS.password
   ) {
-    return sendError(res, 400, 'Name, email or password is too long.');
+    return sendError(res, 400, 'Nome, e-mail ou senha muito longos.');
   }
 
   const nickCheck = checkNick(req.body.nick);
@@ -396,7 +415,7 @@ app.post('/api/auth/register', handle(async (req, res) => {
   const { nick } = nickCheck;
 
   if (await db.get('SELECT 1 FROM user WHERE email = ?', [email])) {
-    return sendError(res, 409, 'Email already registered.');
+    return sendError(res, 409, 'Este e-mail já está cadastrado.');
   }
   if (await db.get('SELECT 1 FROM user WHERE nick = ?', [nick])) {
     return sendError(res, 409, 'Este nick já está em uso.');
@@ -423,7 +442,7 @@ app.post('/api/auth/register', handle(async (req, res) => {
       return sendError(
         res,
         409,
-        /nick/i.test(String(error.message)) ? 'Este nick já está em uso.' : 'Email already registered.'
+        /nick/i.test(String(error.message)) ? 'Este nick já está em uso.' : 'Este e-mail já está cadastrado.'
       );
     }
     throw error;
@@ -450,7 +469,7 @@ app.post('/api/auth/login', handle(async (req, res) => {
   );
   const passwordMatches = await bcrypt.compare(password.slice(0, 200), user ? user.password_hash : DUMMY_HASH);
   if (!user || !passwordMatches) {
-    return sendError(res, 401, 'Invalid email or password.');
+    return sendError(res, 401, 'E-mail ou senha incorretos.');
   }
   return res.json({ token: signToken(user), user: await getUserWithProfile(user.id) });
 }));
@@ -461,8 +480,8 @@ app.get('/api/auth/me', authRequired, handle(async (req, res) => {
 
 app.put('/api/auth/me', authRequired, handle(async (req, res) => {
   const name = String(req.body.name || '').trim();
-  if (!name) return sendError(res, 400, 'Name is required.');
-  if (name.length > PROFILE_LIMITS.name) return sendError(res, 400, 'Name is too long.');
+  if (!name) return sendError(res, 400, 'O nome é obrigatório.');
+  if (name.length > PROFILE_LIMITS.name) return sendError(res, 400, 'O nome é muito longo.');
 
   if (req.body.nick !== undefined) {
     if (String(req.body.nick).trim().toLowerCase() !== String(req.user.nick).toLowerCase()) {
@@ -472,26 +491,26 @@ app.put('/api/auth/me', authRequired, handle(async (req, res) => {
 
   const contactEmail = String(req.body.contactEmail || req.user.email).trim();
   if (!contactEmail.includes('@') || contactEmail.length > PROFILE_LIMITS.contactEmail) {
-    return sendError(res, 400, 'Invalid contact email.');
+    return sendError(res, 400, 'E-mail de contato inválido.');
   }
 
   const phone = String(req.body.phone || '').trim();
   const bio = String(req.body.bio || '').trim();
   if (phone.length > PROFILE_LIMITS.phone || bio.length > PROFILE_LIMITS.bio) {
-    return sendError(res, 400, 'Phone or description is too long.');
+    return sendError(res, 400, 'Telefone ou descrição muito longos.');
   }
 
   const avatarUrl = normalizeAvatarUrl(req.body.avatarUrl);
-  if (avatarUrl === null) return sendError(res, 400, 'Invalid or too large profile picture.');
+  if (avatarUrl === null) return sendError(res, 400, 'Foto de perfil inválida ou grande demais.');
 
   const githubUrl = normalizeHttpUrl(req.body.githubUrl);
   const linkedinUrl = normalizeHttpUrl(req.body.linkedinUrl);
   const websiteUrl = normalizeHttpUrl(req.body.websiteUrl);
   if (githubUrl === null || linkedinUrl === null || websiteUrl === null) {
-    return sendError(res, 400, 'Invalid URL in profile links.');
+    return sendError(res, 400, 'Há um link inválido no perfil.');
   }
   if ([githubUrl, linkedinUrl, websiteUrl].some(url => url.length > PROFILE_LIMITS.url)) {
-    return sendError(res, 400, 'Profile link is too long.');
+    return sendError(res, 400, 'Um dos links do perfil é muito longo.');
   }
 
   await db.run(
@@ -616,7 +635,10 @@ app.get('/api/users/:nick', authOptional, handle(async (req, res) => {
 // Projects
 // ---------------------------------------------------------------------------
 app.get('/api/projects', authOptional, handle(async (req, res) => {
-  return res.json({ projects: await listProjects('', [], { includeOwnerContact: Boolean(req.user) }) });
+  return res.json({ projects: await listProjects('', [], {
+    includeOwnerContact: Boolean(req.user),
+    viewerId: req.user ? req.user.id : null,
+  }) });
 }));
 
 app.get('/api/projects/mine', authRequired, handle(async (req, res) => {
@@ -658,7 +680,7 @@ app.put('/api/projects/:id', authRequired, handle(async (req, res) => {
     'SELECT id FROM project WHERE id = ? AND user_id = ?',
     [projectId, req.user.id]
   );
-  if (!project) return sendError(res, 404, 'Project not found.');
+  if (!project) return sendError(res, 404, 'Projeto não encontrado.');
 
   const error = validateProjectInput(req.body);
   if (error) return sendError(res, 400, error);
@@ -716,7 +738,7 @@ app.delete('/api/projects/:id', authRequired, handle(async (req, res) => {
     'SELECT id FROM project WHERE id = ? AND user_id = ?',
     [projectId, req.user.id]
   );
-  if (!project) return sendError(res, 404, 'Project not found.');
+  if (!project) return sendError(res, 404, 'Projeto não encontrado.');
 
   // Explicit deletes: does not depend on the database enforcing ON DELETE CASCADE.
   await db.transaction(async tx => {
@@ -733,16 +755,16 @@ app.delete('/api/projects/:id', authRequired, handle(async (req, res) => {
 app.post('/api/projects/:id/applications', authRequired, handle(async (req, res) => {
   const projectId = Number(req.params.id);
   const project = await db.get('SELECT id, user_id FROM project WHERE id = ?', [projectId]);
-  if (!project) return sendError(res, 404, 'Project not found.');
+  if (!project) return sendError(res, 404, 'Projeto não encontrado.');
   if (project.user_id === req.user.id) {
-    return sendError(res, 400, 'You cannot apply to your own project.');
+    return sendError(res, 400, 'Você não pode se candidatar ao seu próprio projeto.');
   }
 
   const selected = Array.isArray(req.body.qualificationIds)
     ? [...new Set(req.body.qualificationIds.map(Number))]
     : [];
   if (selected.length > LIMITS.qualifications || !selected.every(Number.isInteger)) {
-    return sendError(res, 400, 'Invalid qualification for this project.');
+    return sendError(res, 400, 'Qualificação inválida para este projeto.');
   }
 
   if (!selected.length) {
@@ -764,7 +786,7 @@ app.post('/api/projects/:id/applications', authRequired, handle(async (req, res)
     [projectId, ...selected]
   );
   if (qualifications.length !== selected.length) {
-    return sendError(res, 400, 'Invalid qualification for this project.');
+    return sendError(res, 400, 'Qualificação inválida para este projeto.');
   }
 
   const blockedQualification = await db.get(
@@ -777,7 +799,7 @@ app.post('/api/projects/:id/applications', authRequired, handle(async (req, res)
     [projectId, req.user.id, ...selected]
   );
   if (blockedQualification) {
-    return sendError(res, 409, 'You cannot apply again to a qualification that was rejected or approved.');
+    return sendError(res, 409, 'Você não pode se candidatar de novo a uma qualificação já aprovada ou recusada.');
   }
 
   const applications = await db.transaction(async tx => {
@@ -856,7 +878,7 @@ app.get('/api/projects/:id/applications', authRequired, handle(async (req, res) 
     'SELECT id FROM project WHERE id = ? AND user_id = ?',
     [projectId, req.user.id]
   );
-  if (!project) return sendError(res, 404, 'Project not found.');
+  if (!project) return sendError(res, 404, 'Projeto não encontrado.');
 
   const applications = await db.all(
     `SELECT a.id, a.status, a.created_at, u.id AS user_id, u.nick, p.name, u.email,
@@ -879,7 +901,7 @@ app.patch('/api/projects/:projectId/applications/:applicationId', authRequired, 
   const applicationId = Number(req.params.applicationId);
   const status = String(req.body.status || '').trim().toLowerCase();
   if (!['pending', 'accepted', 'rejected'].includes(status)) {
-    return sendError(res, 400, 'Invalid status.');
+    return sendError(res, 400, 'Status inválido.');
   }
 
   const application = await db.get(
@@ -889,9 +911,9 @@ app.patch('/api/projects/:projectId/applications/:applicationId', authRequired, 
      WHERE a.id = ? AND a.project_id = ? AND p.user_id = ?`,
     [applicationId, projectId, req.user.id]
   );
-  if (!application) return sendError(res, 404, 'Application not found.');
+  if (!application) return sendError(res, 404, 'Candidatura não encontrada.');
   if (application.status === 'rejected' && status !== 'pending') {
-    return sendError(res, 409, 'Rejected applications cannot be changed.');
+    return sendError(res, 409, 'Candidaturas recusadas só podem voltar para pendente.');
   }
 
   try {
@@ -913,7 +935,7 @@ app.patch('/api/projects/:projectId/applications/:applicationId', authRequired, 
           [projectId, applicationId, projectId, applicationId]
         );
         if (qualification && qualification.filled >= qualification.total_slots) {
-          throw new Error('A qualification has no available slots.');
+          throw new Error('Esta qualificação não tem mais vagas.');
         }
       }
       await tx.run(
@@ -923,7 +945,7 @@ app.patch('/api/projects/:projectId/applications/:applicationId', authRequired, 
       await recalculateFilledSlots(tx, projectId);
     });
   } catch (error) {
-    if (error.message.includes('no available slots')) {
+    if (error.message.includes('não tem mais vagas')) {
       return sendError(res, 409, error.message);
     }
     throw error;
@@ -934,13 +956,13 @@ app.patch('/api/projects/:projectId/applications/:applicationId', authRequired, 
 // ---------------------------------------------------------------------------
 // Fallbacks
 // ---------------------------------------------------------------------------
-app.use('/api', (_req, res) => sendError(res, 404, 'Not found.'));
+app.use('/api', (_req, res) => sendError(res, 404, 'Não encontrado.'));
 
 app.use((error, _req, res, _next) => {
-  if (error.type === 'entity.too.large') return sendError(res, 413, 'Request too large.');
-  if (error.type === 'entity.parse.failed') return sendError(res, 400, 'Invalid JSON.');
+  if (error.type === 'entity.too.large') return sendError(res, 413, 'Requisição grande demais.');
+  if (error.type === 'entity.parse.failed') return sendError(res, 400, 'Requisição inválida.');
   console.error(error);
-  return sendError(res, 500, 'Internal server error.');
+  return sendError(res, 500, 'Erro interno do servidor. Tente novamente.');
 });
 
 if (require.main === module) {

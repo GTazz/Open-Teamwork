@@ -4,51 +4,70 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Sobre · Open Teamwork</title>
-    <link rel="icon" type="image/png" href="../assets/OTW Logo.png" />
-    <meta name="theme-color" content="#0d1117" />
+    <meta name="description" content="Conheça o Open Teamwork e baixe o app." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#010409" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Open Teamwork" />
-    <link rel="manifest" href="../manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="../assets/OTW Logo.png" />
     <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png" />
+    <link rel="manifest" href="../manifest.webmanifest" />
+    <script src="../js/theme.js"></script>
     <link rel="stylesheet" href="../assets/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#main">Pular para o conteúdo</a>
     <header class="site-header">
       <div class="container header-inner">
         <a class="brand" href="../index.html">
-          <img
-            src="../assets/OTW Logo.png"
-            alt="Open Teamwork Logo"
-            class="brand-logo"
-          />
-          Open Teamwork
+          <img src="../assets/OTW Logo.png" alt="" class="brand-logo" width="32" height="32" />
+          <span>Open Teamwork</span>
         </a>
         <nav class="site-nav" aria-label="Navegação principal">
-          <a href="../index.html" class="nav-link">Explorar</a>
-          <a href="./pessoas.html" class="nav-link">Colaboradores</a>
-          <a href="./meus-projetos.html" class="nav-link">Meus Projetos</a>
-          <a href="./perfil.html" class="nav-link">Perfil</a>
-          <a href="./sobre.html" class="nav-link active" aria-current="page"
-            >Sobre</a
-          >
+          <a href="../index.html" class="nav-link">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <span>Explorar</span>
+          </a>
+          <a href="./pessoas.html" class="nav-link">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="M16 4.1a4 4 0 0 1 0 7.8"/><path d="M22 21a7 7 0 0 0-4.5-6.5"/></svg>
+            <span>Colaboradores</span>
+          </a>
+          <a href="./meus-projetos.html" class="nav-link">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            <span>Meus Projetos</span>
+          </a>
+          <a href="./perfil.html" class="nav-link">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+            <span>Perfil</span>
+          </a>
+          <a href="./sobre.html" class="nav-link active" aria-current="page">
+            <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>
+            <span>Sobre</span>
+          </a>
         </nav>
+        <div class="header-actions">
+          <div class="theme-switcher" data-theme-switcher></div>
+        </div>
       </div>
     </header>
 
-    <div class="container">
-      <h1>Sobre Open Teamwork</h1>
+    <main id="main" class="container page about-content">
+      <div class="page-header">
+        <h1>Sobre o Open Teamwork</h1>
+      </div>
+      <p class="page-lead">
+        Uma plataforma para conectar pessoas a projetos colaborativos de acordo
+        com suas habilidades e qualificações.
+      </p>
+
       <section class="page-section">
         <h2>Vídeos do protótipo</h2>
-        <div
-          class="auth-tabs video-tabs"
-          role="tablist"
-          aria-label="Vídeos do projeto"
-        >
+        <div class="segmented video-tabs" role="tablist" aria-label="Vídeos do projeto">
           <button
             type="button"
-            class="auth-tab active"
+            class="segmented-item active"
             role="tab"
             id="video-tab-apresentacao"
             aria-controls="video-panel-apresentacao"
@@ -59,7 +78,7 @@
           </button>
           <button
             type="button"
-            class="auth-tab"
+            class="segmented-item"
             role="tab"
             id="video-tab-detalhado"
             aria-controls="video-panel-detalhado"
@@ -71,47 +90,27 @@
           </button>
         </div>
 
-        <div
-          class="video-panel"
-          role="tabpanel"
-          id="video-panel-apresentacao"
-          aria-labelledby="video-tab-apresentacao"
-          data-video-panel="apresentacao"
-        >
-          <h3 class="video-title">Apresentação do protótipo</h3>
+        <div class="video-panel" role="tabpanel" id="video-panel-apresentacao" aria-labelledby="video-tab-apresentacao" data-video-panel="apresentacao">
+          <h3>Apresentação do protótipo</h3>
           <p class="video-description">
             Pitch curto que apresenta o protótipo do Open Teamwork: o problema
             que ele busca resolver, a ideia da plataforma e como ela conecta
             pessoas a projetos colaborativos de acordo com suas habilidades.
           </p>
-          <div class="video-embed" aria-label="Video explicando o projeto">
+          <div class="video-embed">
             <iframe
               src="https://www.youtube.com/embed/sJD4bKfjqs0"
-              title="Video explicando o projeto Open Teamwork"
+              title="Vídeo de apresentação do Open Teamwork"
               loading="lazy"
-              allow="
-                accelerometer;
-                autoplay;
-                clipboard-write;
-                encrypted-media;
-                gyroscope;
-                picture-in-picture;
-                web-share;
-              "
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               referrerpolicy="strict-origin-when-cross-origin"
               allowfullscreen
             ></iframe>
           </div>
         </div>
 
-        <div
-          class="video-panel hidden"
-          role="tabpanel"
-          id="video-panel-detalhado"
-          aria-labelledby="video-tab-detalhado"
-          data-video-panel="detalhado"
-        >
-          <h3 class="video-title">Funcionamento detalhado do aplicativo</h3>
+        <div class="video-panel hidden" role="tabpanel" id="video-panel-detalhado" aria-labelledby="video-tab-detalhado" data-video-panel="detalhado">
+          <h3>Funcionamento detalhado do aplicativo</h3>
           <p class="video-description">
             O aplicativo em funcionamento, tela por tela, com a explicação da
             parte técnica por trás do protótipo: como os dados são organizados
@@ -119,23 +118,12 @@
           </p>
           <!-- PLACEHOLDER: troque VIDEO_ID_AQUI pelo ID do vídeo no YouTube
                (a parte depois de "v=" no link do vídeo). -->
-          <div
-            class="video-embed"
-            aria-label="Video com o funcionamento detalhado do aplicativo"
-          >
+          <div class="video-embed">
             <iframe
               src="https://www.youtube.com/embed/VIDEO_ID_AQUI"
               title="Funcionamento detalhado do aplicativo Open Teamwork"
               loading="lazy"
-              allow="
-                accelerometer;
-                autoplay;
-                clipboard-write;
-                encrypted-media;
-                gyroscope;
-                picture-in-picture;
-                web-share;
-              "
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               referrerpolicy="strict-origin-when-cross-origin"
               allowfullscreen
             ></iframe>
@@ -145,38 +133,22 @@
 
       <section class="page-section" id="app-download" aria-labelledby="app-download-title">
         <h2 id="app-download-title">Baixe o app</h2>
-        <div class="app-download">
-          <img
-            src="../icons/icon-192.png"
-            alt=""
-            class="app-download-icon"
-            width="72"
-            height="72"
-          />
+        <div class="card app-download">
+          <img src="../icons/icon-192.png" alt="" class="app-download-icon" width="72" height="72" />
           <div class="app-download-body">
-            <p class="app-download-text">
+            <p>
               Use o Open Teamwork no celular com a mesma conta do site. Seus
               projetos e candidaturas aparecem nos dois.
             </p>
             <div class="app-download-actions">
-              <a
-                class="btn-primary app-download-button"
-                href="https://github.com/GTazz/Open-Teamwork/releases/download/android-latest/open-teamwork.apk"
-                rel="noopener"
-              >
+              <a class="btn btn-primary" href="https://github.com/GTazz/Open-Teamwork/releases/download/android-latest/open-teamwork.apk" rel="noopener">
                 <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
                   <path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14Z"></path>
                   <path d="M7.25 7.689V2a.75.75 0 0 1 1.5 0v5.689l1.97-1.969a.749.749 0 1 1 1.06 1.06l-3.25 3.25a.749.749 0 0 1-1.06 0L4.22 6.78a.749.749 0 1 1 1.06-1.06l1.97 1.969Z"></path>
                 </svg>
                 Baixar para Android (APK)
               </a>
-              <button
-                type="button"
-                class="btn-secondary app-download-button hidden"
-                id="pwa-install-button"
-              >
-                Instalar pelo navegador
-              </button>
+              <button type="button" class="btn btn-secondary hidden" id="pwa-install-button">Instalar pelo navegador</button>
             </div>
             <details class="app-download-help">
               <summary>Como instalar</summary>
@@ -210,7 +182,7 @@
           <cite>— Paulo Freire</cite>
         </blockquote>
       </section>
-    </div>
+    </main>
 
     <script src="../js/sobre.js"></script>
   </body>
