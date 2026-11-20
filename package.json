@@ -24,5 +24,10 @@
   },
   "optionalDependencies": {
     "better-sqlite3": "^11.7.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/core": "^8.6.2"
   }
 }

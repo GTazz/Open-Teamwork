@@ -27,11 +27,4 @@ fs.rmSync(target, { recursive: true, force: true });
 ['assets', 'js', 'pages', 'icons'].forEach(directory => copyDirectory(path.join(root, directory), path.join(target, directory)));
 fs.copyFileSync(path.join(root, 'index.html'), path.join(target, 'index.html'));
 
-const api = fs.readFileSync(path.join(root, 'js', 'api-client.js'), 'utf8');
-if (/PRODUCTION_API_URL = 'https:\/\/open-teamwork\.onrender\.com'/.test(api)) {
-  console.warn(
-    '\n[atenção] PRODUCTION_API_URL em js/api-client.js ainda é o endereço de exemplo.\n' +
-      '          Troque pelo endereço real do seu servidor antes de gerar o app.\n'
-  );
-}
 console.log('Pasta www/ pronta. Próximo passo: npx cap sync');

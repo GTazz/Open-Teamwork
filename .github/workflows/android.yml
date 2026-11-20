@@ -1,0 +1,91 @@
+# Builds the Android app (Capacitor) and publishes it as a GitHub release.
+# Download: https://github.com/GTazz/Open-Teamwork/releases/download/android-latest/open-teamwork.apk
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assets/**'
+      - 'js/**'
+      - 'pages/**'
+      - 'icons/**'
+      - 'index.html'
+      - 'capacitor.config.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/prepare-mobile.js'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # Keeps the same signing key between builds, so a new APK installs over the old one.
+      - name: Restore signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Prepare web files
+        run: npm run mobile:prepare
+
+      - name: Create Android project
+        run: npx cap add android
+
+      - name: App icon
+        run: |
+          mkdir -p build-res
+          cp icons/app-icon-1024.png build-res/icon-only.png
+          npx --yes @capacitor/assets@4 generate --android --assetPath build-res \
+            --iconBackgroundColor '#0d1117' --iconBackgroundColorDark '#0d1117' \
+            --splashBackgroundColor '#0d1117' --splashBackgroundColorDark '#0d1117'
+
+      - name: Version number
+        run: |
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]+\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          grep -E "versionCode|versionName" android/app/build.gradle
+
+      - name: Sync
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../open-teamwork.apk
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest open-teamwork.apk \
+            --title "Open Teamwork para Android (1.0.${{ github.run_number }})" \
+            --notes "APK gerado automaticamente a partir do commit ${GITHUB_SHA::7}. Baixe o arquivo open-teamwork.apk no celular e abra para instalar (o Android pede para permitir a instalação de fontes desconhecidas)." \
+            --target "$GITHUB_SHA"
