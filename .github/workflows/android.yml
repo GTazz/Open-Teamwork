@@ -10,6 +10,7 @@ on:
       - 'js/**'
       - 'pages/**'
       - 'icons/**'
+      - 'mobile/**'
       - 'index.html'
       - 'capacitor.config.json'
       - 'package.json'
@@ -57,13 +58,18 @@ jobs:
       - name: Create Android project
         run: npx cap add android
 
-      - name: App icon
+      # Adaptive + legacy icon and splash screen, from mobile/resources
+      # (icon-foreground, icon-background, splash, splash-dark).
+      - name: App icon and splash
         run: |
-          mkdir -p build-res
-          cp icons/app-icon-1024.png build-res/icon-only.png
-          npx --yes @capacitor/assets@4 generate --android --assetPath build-res \
-            --iconBackgroundColor '#0d1117' --iconBackgroundColorDark '#0d1117' \
-            --splashBackgroundColor '#0d1117' --splashBackgroundColorDark '#0d1117'
+          npx --yes @capacitor/assets@4 generate --android --assetPath mobile/resources
+          # Fail if Capacitor's default logo is still the adaptive icon.
+          if grep -q 'ic_launcher_foreground' android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml \
+             && [ ! -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png ]; then
+            echo "Adaptive icon was not generated" && exit 1
+          fi
+          rm -f android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml
+          cat android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
 
       - name: Version number
         run: |
