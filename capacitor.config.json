@@ -1,0 +1,9 @@
+{
+  "appId": "br.com.openteamwork.app",
+  "appName": "Open Teamwork",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "backgroundColor": "#0d1117"
+}

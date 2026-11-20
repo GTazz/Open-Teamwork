@@ -27,7 +27,9 @@ body {
     padding: 12px 0;
 }
 
-@media (max-width: 600px) {
+/* Below 720px the logo and the five links no longer fit side by side, so the
+   menu moves under the logo. */
+@media (max-width: 720px) {
     .header-inner {
         flex-direction: column;
         align-items: flex-start;
@@ -44,6 +46,7 @@ body {
     color: #40a83a;
     font-weight: 700;
     text-decoration: none;
+    white-space: nowrap;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -55,21 +58,6 @@ body {
     object-fit: contain;
 }
 
-.prototype-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 4px;
-    padding: 2px 8px;
-    border-radius: 999px;
-    border: 1px solid #d4a72c;
-    background: #f2cc60;
-    color: #5a4200;
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1.2;
-}
-
 .site-nav {
     display: flex;
     gap: 8px;
@@ -79,6 +67,7 @@ body {
     color: #8b949e;
     font-size: 14px;
     text-decoration: none;
+    white-space: nowrap;
     padding: 6px 10px;
     border-radius: 6px;
     border: 1px solid transparent;
@@ -111,7 +100,7 @@ h1 {
 
 .repo-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr));
     gap: 16px;
 }
 
@@ -156,9 +145,40 @@ h1 {
 }
 
 .repo-owner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     color: #8b949e;
     font-size: 12px;
     margin-bottom: 8px;
+}
+
+/* Round profile picture (or default profile icon) shown next to user names */
+.user-avatar {
+    --avatar-size: 20px;
+    width: var(--avatar-size);
+    height: var(--avatar-size);
+    border-radius: 50%;
+    border: 1px solid #30363d;
+    background: #21262d;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.user-avatar svg {
+    width: 60%;
+    height: 60%;
+    fill: #8b949e;
 }
 
 .repo-description {
@@ -427,6 +447,18 @@ h1 {
     color: #c9d1d9;
 }
 
+#details-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    word-break: break-word;
+}
+
+#details-modal-title .repo-icon {
+    margin-top: 0;
+}
+
 .modal-body {
     margin: 12px 0 16px;
     padding: 0 10px;
@@ -469,6 +501,40 @@ h1 {
 .qualification-item.full:hover {
     background: #161b22;
     border-color: #30363d;
+}
+
+.qualification-item.rejected {
+    opacity: 0.75;
+    cursor: not-allowed;
+    border-color: rgba(248, 81, 73, 0.45);
+}
+
+.qualification-item.rejected:hover {
+    background: #161b22;
+    border-color: rgba(248, 81, 73, 0.45);
+}
+
+.qualification-item.accepted {
+    opacity: 0.75;
+    cursor: not-allowed;
+    border-color: rgba(63, 185, 80, 0.45);
+}
+
+.qualification-item.accepted:hover {
+    background: #161b22;
+    border-color: rgba(63, 185, 80, 0.45);
+}
+
+.qualification-rejected {
+    color: #f85149;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.qualification-accepted {
+    color: #3fb950;
+    font-size: 11px;
+    font-weight: 600;
 }
 
 .qualification-item .person-icon {
@@ -586,10 +652,47 @@ h1 {
 
 .details-owner {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 6px 14px;
     color: #8b949e;
     font-size: 14px;
+    min-width: 0;
+}
+
+/* Owner's contact e-mail (only sent to signed-in people) */
+.owner-email {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    min-width: 0;
+    color: #58a6ff;
+    text-decoration: none;
+}
+
+.owner-email svg {
+    flex-shrink: 0;
+    fill: currentColor;
+}
+
+.owner-email span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.owner-email:hover span {
+    text-decoration: underline;
+}
+
+.repo-owner-email {
+    font-size: 12px;
+    margin: -2px 0 8px;
+}
+
+.details-owner-email {
+    font-size: 13px;
 }
 
 .details-link {
@@ -848,6 +951,9 @@ h1 {
 }
 
 .project-card-owner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     color: #8b949e;
     font-size: 12px;
     margin: 4px 0 0 0;
@@ -1056,20 +1162,6 @@ h1 {
     border-radius: 6px;
 }
 
-.prototype-badge {
-    display: inline-block;
-    margin-left: 8px;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: #d2992233;
-    color: #e3b341;
-    border: 1px solid #d29922;
-    vertical-align: middle;
-}
-
 #repo-counter {
     color: #8b949e;
     margin-bottom: 20px;
@@ -1187,6 +1279,128 @@ h1 {
 .project-card-actions {
     display: flex;
     gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.btn-view-applications {
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.applications-panel {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #30363d;
+    color: #8b949e;
+    font-size: 12px;
+}
+
+.applications-panel h4 {
+    color: #c9d1d9;
+    margin-bottom: 8px;
+}
+
+.application-item {
+    display: grid;
+    gap: 2px;
+    padding: 8px 0;
+    border-top: 1px solid #21262d;
+}
+
+.application-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.application-item strong {
+    color: #58a6ff;
+}
+
+.applications-accepted-title {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #30363d;
+}
+
+.applications-rejected-title {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #30363d;
+}
+
+.application-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-application-action {
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 5px 8px;
+    color: #c9d1d9;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    font-size: 11px;
+}
+
+.btn-application-action:hover {
+    color: #ffffff;
+}
+
+.btn-application-reject {
+    color: #f85149;
+    border-color: #f85149;
+}
+
+.btn-application-reject:hover {
+    background: #da3633;
+}
+
+.btn-application-accept {
+    color: #3fb950;
+    border-color: #238636;
+}
+
+.btn-application-accept:hover {
+    background: #238636;
+}
+
+.btn-application-pending {
+    color: #d29922;
+    border-color: #d29922;
+}
+
+.btn-application-pending:hover {
+    background: #9e6a03;
+}
+
+.application-status-badge {
+    width: fit-content;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+}
+
+.application-status-pending {
+    color: #d29922;
+    background: rgba(210, 153, 34, 0.12);
+}
+
+.application-status-accepted {
+    color: #3fb950;
+    background: rgba(63, 185, 80, 0.12);
+}
+
+.application-status-rejected {
+    color: #f85149;
+    background: rgba(248, 81, 73, 0.12);
 }
 
 .apply-button,
@@ -1403,12 +1617,6 @@ button * {
     gap: 18px;
 }
 
-.profile-grid {
-    display: grid;
-    grid-template-columns: 320px minmax(0, 1fr);
-    gap: 18px;
-}
-
 .profile-card {
     background: #0d1117;
     border: 1px solid #30363d;
@@ -1423,24 +1631,28 @@ button * {
     margin-bottom: 14px;
 }
 
-.avatar-card {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    align-content: start;
+.profile-main {
+    display: grid;
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
 }
 
-.avatar-card h3 {
-    flex-basis: 100%;
+.avatar-uploader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+    min-width: 0;
 }
 
 .avatar-preview {
-    align-self: flex-start;
-    width: 128px;
-    height: 128px;
-    border-radius: 24px;
-    border: 1px solid #30363d;
-    background: #0d1117;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    border: 2px solid #30363d;
+    background: #161b22;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1452,6 +1664,7 @@ button * {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    display: block;
 }
 
 .avatar-fallback {
@@ -1459,15 +1672,15 @@ button * {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 4px;
     text-align: center;
-    color: #c9d1d9;
-    padding: 16px;
+    color: #8b949e;
+    font-size: 12px;
 }
 
 .avatar-fallback svg {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     fill: #8b949e;
     flex-shrink: 0;
 }
@@ -1475,8 +1688,101 @@ button * {
 .avatar-actions {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    flex-wrap: nowrap;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+}
+
+.avatar-upload-button {
+    width: 100%;
+    max-width: 190px;
+    margin-left: 0;
+    padding: 8px 12px;
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    color: #c9d1d9;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.avatar-upload-button:hover {
+    background: #30363d;
+    border-color: #58a6ff;
+}
+
+.avatar-upload-button:focus-visible {
+    outline: 2px solid #58a6ff;
+    outline-offset: 2px;
+}
+
+.avatar-remove-button {
+    margin-left: 0;
+    padding: 6px 10px;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    color: #f85149;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.avatar-remove-button:hover {
+    background: #da363322;
+    text-decoration: underline;
+}
+
+.avatar-hint {
+    margin: 0;
+    max-width: 190px;
+}
+
+/* Header of the profile panel: avatar + name + e-mail */
+.profile-identity {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+}
+
+.profile-identity h2 {
+    margin: 0 0 2px;
+    overflow-wrap: anywhere;
+}
+
+.profile-identity p {
+    overflow-wrap: anywhere;
+}
+
+.profile-header-avatar .user-avatar {
+    border-width: 2px;
+}
+
+/* Save bar stays visible while the long form is scrolled */
+.profile-actions {
+    position: sticky;
+    bottom: 16px;
+    z-index: 5;
+    align-items: center;
+    padding: 12px 16px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.profile-actions-note {
+    margin-right: auto;
+    color: #8b949e;
+    font-size: 13px;
+}
+
+@media (max-width: 600px) {
+    .profile-actions-note {
+        display: none;
+    }
 }
 
 [data-logout-button] {
@@ -1590,4 +1896,869 @@ button * {
         flex-wrap: nowrap;
         align-items: center;
     }
+}
+
+/* =========================================================
+   TAG INPUT (chips) - new project modal
+   ========================================================= */
+.tag-input {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    min-height: 46px;
+    background: linear-gradient(180deg, #0d1117 0%, #0b1015 100%);
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    cursor: text;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tag-input:focus-within {
+    border-color: #58a6ff;
+    box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.18);
+}
+
+.form-group .tag-input input.tag-input-field {
+    flex: 1 1 120px;
+    min-width: 0;
+    width: auto;
+    padding: 4px 2px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: #c9d1d9;
+    font: inherit;
+    font-size: 14px;
+    outline: none;
+    transform: none;
+}
+
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    max-width: 100%;
+    padding: 3px 4px 3px 10px;
+    font-size: 12px;
+    white-space: normal;
+    border: 1px solid transparent;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    animation: tag-pop 0.16s ease-out;
+}
+
+.tag-chip-label {
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+}
+
+.tag-chip-remove {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* The "x" glows red to signal that clicking it deletes the tag. */
+.tag-chip-remove:hover,
+.tag-chip-remove:focus-visible {
+    background: rgba(248, 81, 73, 0.22);
+    color: #ff7b72;
+    box-shadow: 0 0 8px 2px rgba(248, 81, 73, 0.6);
+    outline: none;
+}
+
+.tag-chip:has(.tag-chip-remove:hover),
+.tag-chip:has(.tag-chip-remove:focus-visible) {
+    background-color: rgba(248, 81, 73, 0.12);
+    border-color: rgba(248, 81, 73, 0.5);
+}
+
+@keyframes tag-pop {
+    from {
+        opacity: 0;
+        transform: scale(0.85);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tag-chip {
+        animation: none;
+    }
+}
+
+/* =========================================================
+   "Sobre" page: video tabs and descriptions
+   ========================================================= */
+.auth-tabs.video-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    width: 100%;
+    max-width: 820px;
+    margin-bottom: 16px;
+    border-radius: 16px;
+}
+
+.video-tabs .auth-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    line-height: 1.3;
+    text-align: center;
+    white-space: normal;
+}
+
+.video-title {
+    margin: 0 0 6px;
+    color: #c9d1d9;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.video-description {
+    max-width: 820px;
+    margin: 0 0 14px;
+    color: #8b949e;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* =========================================================
+   RESPONSIVE REFINEMENTS (mobile first priority)
+   ========================================================= */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+img,
+video,
+iframe {
+    max-width: 100%;
+}
+
+body {
+    overflow-wrap: break-word;
+}
+
+@media (max-width: 900px) {
+    .profile-main {
+        grid-template-columns: 170px minmax(0, 1fr);
+        gap: 20px;
+    }
+}
+
+@media (max-width: 720px) {
+    .profile-main {
+        grid-template-columns: 1fr;
+    }
+
+    .avatar-uploader {
+        padding-bottom: 16px;
+        border-bottom: 1px solid #21262d;
+    }
+
+    .avatar-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .avatar-upload-button {
+        width: auto;
+        max-width: none;
+        padding: 8px 18px;
+    }
+
+    .avatar-hint {
+        max-width: 320px;
+    }
+}
+
+@media (max-width: 600px) {
+    body {
+        padding: 0 14px 32px;
+    }
+
+    h1 {
+        margin-top: 16px;
+        margin-bottom: 20px;
+        font-size: 24px;
+    }
+
+    .page-toolbar {
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 16px;
+        margin-bottom: 16px;
+    }
+
+    .site-nav {
+        flex-wrap: wrap;
+        gap: 2px;
+    }
+
+    /* Tight enough for the five links ("Colaboradores" is the longest) to fit
+       on one line on a 375px phone; they still wrap on narrower screens. */
+    .nav-link {
+        padding: 8px 6px;
+        font-size: 12.5px;
+    }
+
+    .video-title {
+        font-size: 15px;
+    }
+
+    /* cards */
+    .repo-card,
+    .project-card {
+        padding: 14px;
+    }
+
+    .repo-footer {
+        gap: 8px;
+    }
+
+    .repo-footer > button {
+        flex: 1 1 140px;
+        justify-content: center;
+        margin-left: 0;
+    }
+
+    .project-card-header {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .project-card-header > div:first-child {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .project-card-actions {
+        justify-content: flex-start;
+        width: 100%;
+    }
+
+    .application-heading,
+    .application-actions {
+        flex-wrap: wrap;
+    }
+
+    .empty-state {
+        padding: 28px 12px;
+    }
+
+    /* modals: fit the screen and keep action buttons reachable */
+    .modal {
+        padding: 12px;
+    }
+
+    .modal-content {
+        width: 100%;
+        padding: 16px;
+    }
+
+    .modal-content:not(.modal-large) {
+        max-height: calc(100vh - 24px);
+        max-height: calc(100dvh - 24px);
+        overflow-y: auto;
+    }
+
+    .modal-large {
+        max-height: calc(100vh - 24px);
+        max-height: calc(100dvh - 24px);
+    }
+
+    .modal-body-large {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+    }
+
+    .modal-header,
+    .modal-body,
+    .modal-actions {
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .modal-title {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .modal-actions {
+        flex-wrap: wrap;
+    }
+
+    .modal-actions > button {
+        flex: 1 1 120px;
+        justify-content: center;
+        margin-left: 0;
+    }
+
+    .details-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .qualification-input-row .qual-total {
+        flex: 0 0 64px;
+    }
+
+    .btn-remove-qual {
+        flex-shrink: 0;
+        width: 36px;
+        height: 36px;
+    }
+
+    /* forms: 16px prevents the automatic zoom on iOS when focusing a field */
+    .form-group input[type="text"],
+    .form-group input[type="email"],
+    .form-group input[type="password"],
+    .form-group input[type="url"],
+    .form-group input[type="tel"],
+    .form-group input[type="number"],
+    .form-group textarea,
+    .tag-input .tag-input-field {
+        font-size: 16px;
+    }
+
+    /* login and profile */
+    .auth-panel,
+    .profile-panel {
+        padding: 16px;
+        border-radius: 14px;
+    }
+
+    .auth-panel .auth-form,
+    .profile-card {
+        padding: 14px;
+    }
+
+    .auth-tabs:not(.video-tabs) {
+        display: flex;
+        width: 100%;
+    }
+
+    .auth-tabs:not(.video-tabs) .auth-tab {
+        flex: 1;
+    }
+
+    .profile-identity {
+        gap: 12px;
+    }
+
+    .profile-panel-header h2 {
+        font-size: 22px;
+    }
+
+    .profile-actions {
+        bottom: 8px;
+        padding: 10px 12px;
+    }
+
+    .profile-actions .btn-primary,
+    .profile-actions .btn-secondary {
+        flex: 1;
+        justify-content: center;
+        margin-left: 0;
+    }
+
+    /* "https://github.com/" prefix sits above the field instead of squeezing it */
+    .url-field {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .url-prefix {
+        padding: 8px 12px;
+        border-right: 0;
+        border-bottom: 1px solid #30363d;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+}
+
+/* Video selector: one tab per line on narrow screens */
+@media (max-width: 560px) {
+    .auth-tabs.video-tabs {
+        grid-template-columns: 1fr;
+        border-radius: 14px;
+    }
+
+    .video-embed {
+        border-radius: 10px;
+    }
+}
+
+@media (max-width: 380px) {
+    .nav-link {
+        padding: 6px 5px;
+        font-size: 12px;
+    }
+
+    .repo-grid {
+        gap: 12px;
+    }
+}
+
+/* Touch screens: comfortable tap targets */
+@media (pointer: coarse) {
+    .btn-primary,
+    .btn-secondary,
+    .saiba-mais-button,
+    .apply-button,
+    .nav-link {
+        min-height: 40px;
+    }
+
+    .close-button {
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    .btn-application-action {
+        min-height: 36px;
+    }
+
+    .tag-chip-remove {
+        width: 28px;
+        height: 28px;
+        font-size: 18px;
+    }
+}
+
+
+/* =========================================================
+   PEOPLE directory, public profile, nick
+   ========================================================= */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.page-lead {
+    margin: 0 0 16px;
+    color: #8b949e;
+    font-size: 14px;
+    line-height: 1.6;
+    max-width: 720px;
+}
+
+.owner-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+a.owner-link:hover span {
+    color: #58a6ff;
+    text-decoration: underline;
+}
+
+.applicant-nick {
+    color: #8b949e;
+    font-weight: 400;
+    margin-left: 4px;
+}
+
+.project-search {
+    margin: 4px 0 14px;
+}
+
+.people-search input,
+.project-search input {
+    width: 100%;
+    max-width: 520px;
+    padding: 11px 14px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    color: #c9d1d9;
+    font: inherit;
+    font-size: 14px;
+}
+
+.people-search input:focus,
+.project-search input:focus {
+    outline: none;
+    border-color: #58a6ff;
+    box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.18);
+}
+
+.people-counter {
+    margin: 14px 0;
+    color: #8b949e;
+    font-size: 13px;
+}
+
+.people-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    gap: 12px;
+}
+
+.person-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    text-decoration: none;
+    color: inherit;
+    min-width: 0;
+    transition: border-color 0.2s ease;
+}
+
+.person-card:hover,
+.person-card:focus-visible {
+    border-color: #58a6ff;
+    outline: none;
+}
+
+.person-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.person-name {
+    color: #c9d1d9;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.person-nick {
+    color: #58a6ff;
+    font-size: 13px;
+}
+
+.person-bio {
+    margin-top: 4px;
+    color: #8b949e;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.people-more {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0 32px;
+}
+
+.people-more .btn-secondary {
+    margin-left: 0;
+    padding: 8px 18px;
+}
+
+.back-link {
+    margin: 16px 0 12px;
+    font-size: 14px;
+}
+
+.back-link a,
+.user-muted a {
+    color: #58a6ff;
+    text-decoration: none;
+}
+
+.back-link a:hover,
+.user-muted a:hover {
+    text-decoration: underline;
+}
+
+.user-state {
+    padding: 40px 12px;
+    text-align: center;
+    color: #8b949e;
+}
+
+.user-state.error {
+    color: #f85149;
+}
+
+.user-hero-card {
+    margin-bottom: 16px;
+}
+
+.user-hero {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.user-hero-info {
+    flex: 1 1 220px;
+    min-width: 0;
+}
+
+.user-name {
+    margin: 0 0 2px;
+    color: #c9d1d9;
+    font-size: 26px;
+    overflow-wrap: anywhere;
+}
+
+.user-nick {
+    margin: 0;
+    color: #58a6ff;
+    font-size: 15px;
+}
+
+.user-since {
+    margin: 6px 0 0;
+    color: #8b949e;
+    font-size: 13px;
+}
+
+.user-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.user-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid #30363d;
+    border-radius: 999px;
+    color: #58a6ff;
+    font-size: 13px;
+    text-decoration: none;
+}
+
+.user-link svg {
+    fill: currentColor;
+}
+
+.user-link:hover {
+    border-color: #58a6ff;
+    background: #1f6feb22;
+}
+
+.user-edit-link {
+    margin-left: 0;
+    text-decoration: none;
+    padding: 8px 14px;
+}
+
+/* The card (.profile-panel) already spaces its children with a 20px gap */
+.user-bio {
+    margin: 0;
+    color: #c9d1d9;
+    font-size: 15px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.user-muted {
+    color: #8b949e;
+    font-size: 14px;
+}
+
+.user-section {
+    margin-bottom: 20px;
+}
+
+.user-section h2 {
+    margin: 0 0 12px;
+    color: #c9d1d9;
+    font-size: 18px;
+}
+
+.profile-card.user-section {
+    padding: 18px;
+}
+
+.contact-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.contact-list li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    font-size: 14px;
+    color: #c9d1d9;
+    overflow-wrap: anywhere;
+}
+
+.contact-label {
+    min-width: 72px;
+    color: #8b949e;
+}
+
+.contact-list a {
+    color: #58a6ff;
+    text-decoration: none;
+}
+
+.user-projects {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+    gap: 14px;
+}
+
+.user-project {
+    margin-bottom: 0;
+}
+
+.user-project .project-card-title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.user-project .project-card-title a:hover {
+    text-decoration: underline;
+}
+
+.profile-nick-line {
+    margin: 0 0 2px;
+    font-size: 14px;
+}
+
+.profile-nick-line a {
+    color: #58a6ff;
+    text-decoration: none;
+}
+
+.profile-nick-line a:hover {
+    text-decoration: underline;
+}
+
+.nick-field .url-prefix {
+    padding: 0 8px 0 12px;
+}
+
+.input-hint.nick-ok {
+    color: #3fb950;
+}
+
+.input-hint.nick-bad {
+    color: #f85149;
+}
+
+@media (max-width: 600px) {
+    .user-hero {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+    }
+
+    /* In a column the 220px flex-basis would become a minimum height and
+       leave an empty gap under the links, so size the block by its content. */
+    .user-hero-info {
+        flex: 0 0 auto;
+        width: 100%;
+    }
+
+    .user-name {
+        font-size: 22px;
+    }
+
+    .user-edit-link {
+        display: flex;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .people-search input,
+    .project-search input {
+        max-width: none;
+        /* 16px stops iOS from zooming in when the field gets focus */
+        font-size: 16px;
+    }
+
+    .nick-field {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .nick-field .url-prefix {
+        border-right: 1px solid #30363d;
+        border-bottom: 0;
+        line-height: 42px;
+        padding: 0 8px 0 12px;
+    }
+}
+
+
+/* =========================================================
+   Phones with notch / home indicator (installed app)
+   ========================================================= */
+@supports (padding: max(0px)) {
+    body {
+        padding-left: max(20px, env(safe-area-inset-left));
+        padding-right: max(20px, env(safe-area-inset-right));
+        padding-bottom: max(40px, env(safe-area-inset-bottom));
+    }
+
+    @media (max-width: 600px) {
+        body {
+            padding-left: max(14px, env(safe-area-inset-left));
+            padding-right: max(14px, env(safe-area-inset-right));
+            padding-bottom: max(32px, env(safe-area-inset-bottom));
+        }
+    }
+
+    .site-header {
+        padding-top: env(safe-area-inset-top);
+    }
+}
+
+html {
+    -webkit-tap-highlight-color: transparent;
 }

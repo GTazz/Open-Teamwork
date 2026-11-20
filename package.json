@@ -1,0 +1,28 @@
+{
+  "name": "open-teamwork",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Open Teamwork: site, API e base para o app mobile",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "db:migrate": "node server.js --migrate",
+    "test": "node --test",
+    "mobile:prepare": "node scripts/prepare-mobile.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.7.0"
+  }
+}

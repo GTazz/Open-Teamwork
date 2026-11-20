@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Colaboradores · Open Teamwork</title>
+    <link rel="icon" type="image/png" href="../assets/OTW Logo.png" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Open Teamwork" />
+    <link rel="manifest" href="../manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png" />
+    <link rel="stylesheet" href="../assets/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="../index.html">
+          <img
+            src="../assets/OTW Logo.png"
+            alt="Open Teamwork Logo"
+            class="brand-logo"
+          />
+          Open Teamwork
+        </a>
+        <nav class="site-nav" aria-label="Navegação principal">
+          <a href="../index.html" class="nav-link">Explorar</a>
+          <a href="./pessoas.html" class="nav-link active" aria-current="page">Colaboradores</a>
+          <a href="./meus-projetos.html" class="nav-link">Meus Projetos</a>
+          <a href="./perfil.html" class="nav-link">Perfil</a>
+          <a href="./sobre.html" class="nav-link">Sobre</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="container">
+      <div class="page-toolbar">
+        <h1>Colaboradores</h1>
+      </div>
+      <p class="page-lead">
+        Encontre quem está construindo projetos no Open Teamwork e veja o perfil
+        de cada colaborador.
+      </p>
+
+      <div class="people-search">
+        <label class="visually-hidden" for="people-search">Buscar colaboradores</label>
+        <input
+          type="search"
+          id="people-search"
+          placeholder="Buscar por nome ou @nick"
+          maxlength="60"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+      </div>
+
+      <p id="people-counter" class="people-counter" aria-live="polite">
+        Carregando colaboradores...
+      </p>
+      <div class="people-grid" id="people-grid"></div>
+      <div class="people-more">
+        <button type="button" id="people-more" class="btn-secondary hidden">
+          Carregar mais
+        </button>
+      </div>
+    </div>
+
+    <script src="../js/api-client.js"></script>
+    <script src="../js/pessoas.js"></script>
+  </body>
+</html>

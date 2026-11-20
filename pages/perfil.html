@@ -2,9 +2,16 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Perfil · Open Teamwork</title>
     <link rel="icon" type="image/png" href="../assets/OTW Logo.png" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Open Teamwork" />
+    <link rel="manifest" href="../manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png" />
     <link rel="stylesheet" href="../assets/styles.css" />
   </head>
   <body>
@@ -17,10 +24,10 @@
             class="brand-logo"
           />
           Open Teamwork
-          <span class="prototype-badge">Prototipo</span>
         </a>
         <nav class="site-nav" aria-label="Navegação principal">
           <a href="../index.html" class="nav-link">Explorar</a>
+          <a href="./pessoas.html" class="nav-link">Colaboradores</a>
           <a href="./meus-projetos.html" class="nav-link">Meus Projetos</a>
           <a href="./perfil.html" class="nav-link active" aria-current="page"
             >Perfil</a
@@ -130,6 +137,29 @@
                 />
               </div>
               <div class="form-group span-2">
+                <label for="signup-nick">Nick (nome de usuário)</label>
+                <div class="url-field nick-field">
+                  <span class="url-prefix">@</span>
+                  <input
+                    type="text"
+                    name="signup-nick"
+                    id="signup-nick"
+                    autocomplete="username"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    maxlength="20"
+                    placeholder="seu_nick"
+                    pattern="[A-Za-z0-9_]{3,20}"
+                    aria-describedby="signup-nick-status"
+                    required
+                  />
+                </div>
+                <p class="input-hint" id="signup-nick-status" aria-live="polite">
+                  3 a 20 caracteres: letras, números e _. É único e
+                  <strong>não poderá ser alterado depois</strong>.
+                </p>
+              </div>
+              <div class="form-group span-2">
                 <label for="signup-email">E-mail</label>
                 <input
                   type="email"
@@ -177,9 +207,15 @@
 
       <section class="profile-panel hidden" data-profile-panel>
         <div class="profile-panel-header">
-          <div>
-            <h2 data-profile-name-display></h2>
-            <p data-profile-email-display></p>
+          <div class="profile-identity">
+            <span class="profile-header-avatar" data-profile-header-avatar></span>
+            <div>
+              <h2 data-profile-name-display></h2>
+              <p class="profile-nick-line">
+                <a data-profile-public-link href="./pessoas.html" title="Ver como os outros veem o meu perfil"></a>
+              </p>
+              <p data-profile-email-display></p>
+            </div>
           </div>
           <button type="button" class="btn-secondary" data-logout-button>
             Sair
@@ -193,32 +229,41 @@
         ></p>
 
         <form class="profile-form" data-profile-form>
-          <div class="profile-grid">
-            <section class="profile-card avatar-card">
-              <h3>Foto de perfil</h3>
-              <div class="avatar-preview" data-avatar-preview></div>
-              <div class="avatar-actions">
-                <label
-                  for="profile-avatar"
-                  class="btn-primary avatar-upload-button"
-                  data-avatar-upload
-                >
-                  Enviar imagem
-                </label>
-                <button type="button" class="btn-secondary" data-avatar-remove>
-                  Remover foto
-                </button>
+          <section class="profile-card">
+            <h3>Informações principais</h3>
+            <div class="profile-main">
+              <div class="avatar-uploader">
+                <div class="avatar-preview" data-avatar-preview></div>
+                <div class="avatar-actions">
+                  <label
+                    for="profile-avatar"
+                    class="avatar-upload-button"
+                    data-avatar-upload
+                    role="button"
+                    tabindex="0"
+                  >
+                    Enviar imagem
+                  </label>
+                  <button
+                    type="button"
+                    class="avatar-remove-button"
+                    data-avatar-remove
+                  >
+                    Remover foto
+                  </button>
+                </div>
+                <p class="input-hint avatar-hint">
+                  JPG, PNG ou WebP. A imagem é cortada em quadrado e reduzida
+                  automaticamente.
+                </p>
+                <input
+                  type="file"
+                  id="profile-avatar"
+                  accept="image/*"
+                  class="hidden"
+                />
               </div>
-              <input
-                type="file"
-                id="profile-avatar"
-                accept="image/*"
-                class="hidden"
-              />
-            </section>
 
-            <section class="profile-card">
-              <h3>Informações principais</h3>
               <div class="profile-field-grid">
                 <div class="form-group span-2">
                   <label for="profile-name">Nome</label>
@@ -233,14 +278,14 @@
                   ></textarea>
                 </div>
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
 
           <section class="profile-card">
             <h3>Contato</h3>
             <div class="profile-field-grid">
-              <div class="form-group span-2">
-                <label for="profile-email">E-mail</label>
+              <div class="form-group">
+                <label for="profile-email">E-mail de contato</label>
                 <input
                   type="email"
                   id="profile-email"
@@ -292,7 +337,7 @@
                   />
                 </div>
               </div>
-              <div class="form-group">
+              <div class="form-group span-2">
                 <label for="profile-website">Site pessoal</label>
                 <input
                   type="url"
@@ -304,6 +349,7 @@
           </section>
 
           <div class="profile-actions hidden" data-profile-actions>
+            <span class="profile-actions-note">Você tem alterações não salvas.</span>
             <button type="button" class="btn-secondary" data-profile-reset>
               Descartar alterações
             </button>
@@ -313,6 +359,7 @@
       </section>
     </main>
 
+    <script src="../js/api-client.js"></script>
     <script src="../js/perfil.js"></script>
   </body>
 </html>

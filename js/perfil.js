@@ -1,11 +1,6 @@
 // ========================================
-// CONSTANTES E REFERÊNCIAS
+// CONSTANTS AND REFERENCES
 // ========================================
-
-const STORAGE_KEYS = {
-  accounts: 'openTeamworkAccounts',
-  session: 'openTeamworkSession',
-};
 
 const profileApp = document.querySelector('[data-profile-app]');
 const authPanel = document.querySelector('[data-auth-panel]');
@@ -17,6 +12,7 @@ const profileHero = document.querySelector('[data-profile-hero]');
 const profileNameDisplay = document.querySelector('[data-profile-name-display]');
 const profileEmailDisplay = document.querySelector('[data-profile-email-display]');
 const avatarPreview = document.querySelector('[data-avatar-preview]');
+const profileHeaderAvatar = document.querySelector('[data-profile-header-avatar]');
 const logoutButton = document.querySelector('[data-logout-button]');
 const avatarRemoveButton = document.querySelector('[data-avatar-remove]');
 const avatarUploadButton = document.querySelector('[data-avatar-upload]');
@@ -30,6 +26,9 @@ const signupForm = document.querySelector('[data-auth-form="signup"]');
 const loginEmailInput = document.getElementById('login-email');
 const loginPasswordInput = document.getElementById('login-password');
 const signupNameInput = document.getElementById('signup-name');
+const signupNickInput = document.getElementById('signup-nick');
+const signupNickStatus = document.getElementById('signup-nick-status');
+const profilePublicLink = document.querySelector('[data-profile-public-link]');
 const signupEmailInput = document.getElementById('signup-email');
 const signupPasswordInput = document.getElementById('signup-password');
 const signupConfirmPasswordInput = document.getElementById('signup-confirm-password');
@@ -69,13 +68,14 @@ let activeAuthTab = 'login';
 let activeAvatarDataUrl = '';
 let activeSessionEmail = '';
 let initialProfileFormState = null;
+let activeAccount = null;
 
 // ========================================
-// UTILITÁRIOS
+// UTILITIES
 // ========================================
 
 /**
- * Normaliza um e-mail para comparação e armazenamento.
+ * Normalizes an email for comparison and storage.
  * @param {string} value
  * @returns {string}
  */
@@ -84,7 +84,7 @@ function normalizeEmail(value) {
 }
 
 /**
- * Normaliza texto livre removendo espaços nas extremidades.
+ * Trims free text.
  * @param {string} value
  * @returns {string}
  */
@@ -93,7 +93,7 @@ function normalizeText(value) {
 }
 
 /**
- * Sanitiza uma URL para permitir apenas protocolos http e https.
+ * Sanitizes a URL and allows only HTTP and HTTPS protocols.
  * @param {string} value
  * @returns {string}
  */
@@ -101,8 +101,11 @@ function sanitizeUrl(value) {
   const rawValue = normalizeText(value);
   if (!rawValue) return '';
 
+  // "seusite.com" (sem protocolo) vira "https://seusite.com".
+  const withProtocol = /^[a-z][a-z0-9+.-]*:/i.test(rawValue) ? rawValue : `https://${rawValue}`;
+
   try {
-    const parsed = new URL(rawValue, window.location.origin);
+    const parsed = new URL(withProtocol);
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
       return parsed.href;
     }
@@ -114,7 +117,7 @@ function sanitizeUrl(value) {
 }
 
 /**
- * Extrai o trecho editável de uma URL social (parte após o prefixo fixo).
+ * Extracts the editable portion of a social URL after its fixed prefix.
  * @param {string} value
  * @param {string} prefix
  * @returns {string}
@@ -149,7 +152,7 @@ function getSocialSuffix(value, prefix) {
 }
 
 /**
- * Monta uma URL social completa a partir do trecho editável.
+ * Builds a complete social URL from the editable portion.
  * @param {string} suffix
  * @param {string} prefix
  * @returns {string}
@@ -161,7 +164,7 @@ function buildSocialUrl(suffix, prefix) {
 }
 
 /**
- * Monta um estado normalizado do formulário para detectar alterações.
+ * Builds a normalized form state to detect changes.
  * @param {any} account
  * @returns {string}
  */
@@ -170,7 +173,7 @@ function getProfileFormState(account) {
     name: normalizeText(profileNameInput?.value),
     contactEmail: normalizeEmail(profileEmailInput?.value),
     phone: normalizeText(profilePhoneInput?.value),
-    // Campo removido da UI; mantém valor existente para não sinalizar alteração falsa.
+    // Removed field: preserve the existing value to avoid false change detection.
     location: normalizeText(account?.profile?.contact?.location || ''),
     bio: normalizeText(profileBioInput?.value),
     github: buildSocialUrl(getSocialSuffix(profileGithubInput?.value || '', SOCIAL_PREFIXES.github), SOCIAL_PREFIXES.github),
@@ -181,7 +184,7 @@ function getProfileFormState(account) {
 }
 
 /**
- * Mostra/esconde ações de salvar/descartar conforme alterações no formulário.
+ * Shows or hides save/discard actions based on form changes.
  */
 function updateProfileActionsVisibility() {
   if (!profileActions) return;
@@ -196,24 +199,17 @@ function updateProfileActionsVisibility() {
   profileActions.classList.toggle('hidden', !hasChanges);
 }
 
-/**
- * Recupera os perfis salvos no localStorage.
- * @returns {Record<string, any>}
- */
+/** Returns the active account kept in memory during the session. */
 function getAccounts() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.accounts)) || {};
-  } catch (_) {
-    return {};
-  }
+  return activeAccount
+    ? { [normalizeEmail(activeAccount.email)]: activeAccount }
+    : {};
 }
 
-/**
- * Persiste os perfis no localStorage.
- * @param {Record<string, any>} accounts
- */
+/** Updates the active account in memory. */
 function saveAccounts(accounts) {
-  localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(accounts));
+  const account = accounts[normalizeEmail(activeSessionEmail)];
+  if (account) activeAccount = account;
 }
 
 /**
@@ -221,26 +217,28 @@ function saveAccounts(accounts) {
  * @returns {string}
  */
 function getSessionEmail() {
-  return normalizeEmail(localStorage.getItem(STORAGE_KEYS.session));
+  return normalizeEmail(activeSessionEmail);
 }
 
 /**
- * Salva a sessão atual.
+ * Saves the current session.
  * @param {string} email
  */
 function setSessionEmail(email) {
-  localStorage.setItem(STORAGE_KEYS.session, normalizeEmail(email));
+  activeSessionEmail = normalizeEmail(email);
 }
 
 /**
- * Remove a sessão atual.
+ * Removes the current session.
  */
 function clearSession() {
-  localStorage.removeItem(STORAGE_KEYS.session);
+  activeSessionEmail = '';
+  activeAccount = null;
+  clearApiToken();
 }
 
 /**
- * Cria uma estrutura de perfil vazia.
+ * Creates an empty profile structure.
  * @returns {{avatarUrl: string, bio: string, contact: {phone: string, location: string}, socials: {github: string, linkedin: string, x: string, website: string}}}
  */
 function createEmptyProfile() {
@@ -262,7 +260,7 @@ function createEmptyProfile() {
 }
 
 /**
- * Cria uma conta local.
+ * Creates an account structure.
  * @param {{name: string, email: string, password: string}} payload
  * @returns {{name: string, email: string, password: string, profile: ReturnType<typeof createEmptyProfile>}}
  */
@@ -276,7 +274,81 @@ function createAccount(payload) {
 }
 
 /**
- * Recupera uma conta pelo e-mail.
+ * Converts the API user (name, profile.contact_email, profile.phone...) into
+ * the account structure used by this screen.
+ * @param {any} user
+ * @returns {ReturnType<typeof createAccount>}
+ */
+function accountFromApiUser(user) {
+  const profile = user.profile || {};
+  const account = createAccount({
+    name: profile.name || user.name,
+    email: user.email,
+    password: '',
+  });
+  account.id = user.id;
+  account.nick = user.nick || '';
+  account.profile = {
+    avatarUrl: profile.avatar_url || '',
+    bio: profile.bio || '',
+    contact: {
+      email: profile.contact_email || user.email,
+      phone: profile.phone || '',
+      location: '',
+    },
+    socials: {
+      github: profile.github_url || '',
+      linkedin: profile.linkedin_url || '',
+      x: '',
+      website: profile.website_url || '',
+    },
+  };
+  return account;
+}
+
+/**
+ * Reads an image file, crops it to a square and shrinks it so it fits in the database.
+ * @param {File} file
+ * @param {number} maxSize
+ * @returns {Promise<string>} JPEG data URL
+ */
+function resizeImageToDataUrl(file, maxSize = 256) {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const side = Math.min(image.naturalWidth, image.naturalHeight);
+      const target = Math.min(maxSize, side);
+      const canvas = document.createElement('canvas');
+      canvas.width = target;
+      canvas.height = target;
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, target, target);
+      context.drawImage(
+        image,
+        (image.naturalWidth - side) / 2,
+        (image.naturalHeight - side) / 2,
+        side,
+        side,
+        0,
+        0,
+        target,
+        target
+      );
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Não foi possível ler essa imagem.'));
+    };
+    image.src = objectUrl;
+  });
+}
+
+/**
+ * Retrieves an account by email.
  * @param {string} email
  * @returns {any}
  */
@@ -286,7 +358,7 @@ function getAccount(email) {
 }
 
 /**
- * Salva uma conta e atualiza o índice caso o e-mail tenha mudado.
+ * Saves an account and updates the index if the email changed.
  * @param {any} account
  * @param {string} previousEmail
  */
@@ -308,7 +380,7 @@ function saveAccount(account, previousEmail) {
 }
 
 /**
- * Retorna as iniciais para o avatar de fallback.
+ * Returns fallback avatar initials.
  * @param {string} name
  * @param {string} email
  * @returns {string}
@@ -326,7 +398,7 @@ function getInitials(name, email) {
 }
 
 /**
- * Exibe uma mensagem de feedback.
+ * Displays a feedback message.
  * @param {HTMLElement | null} element
  * @param {string} message
  * @param {'success' | 'error'} type
@@ -340,7 +412,7 @@ function showMessage(element, message, type) {
 }
 
 /**
- * Oculta e limpa uma mensagem de feedback.
+ * Clears and hides a feedback message.
  * @param {HTMLElement | null} element
  */
 function clearMessage(element) {
@@ -352,7 +424,7 @@ function clearMessage(element) {
 }
 
 /**
- * Alterna a hero entre login e perfil sem reescrever texto no JS.
+ * Switches the hero between login and profile mode.
  * @param {'login' | 'profile'} mode
  */
 function setHeroMode(mode) {
@@ -364,7 +436,7 @@ function setHeroMode(mode) {
 }
 
 /**
- * Alterna o formulário de login/cadastro exibido.
+ * Switches the displayed authentication form.
  * @param {'login' | 'signup'} mode
  */
 function setAuthTab(mode) {
@@ -385,7 +457,7 @@ function setAuthTab(mode) {
 }
 
 /**
- * Atualiza o avatar de pré-visualização.
+ * Updates the avatar preview.
  * @param {string} dataUrl
  * @param {string} name
  * @param {string} email
@@ -395,7 +467,7 @@ function renderAvatarPreview(dataUrl, name, email) {
 
   if (dataUrl) {
     avatarPreview.innerHTML = `
-      <img src="${dataUrl}" alt="Foto de perfil atual" />
+      <img src="${escapeHtmlText(dataUrl)}" alt="Foto de perfil atual" />
     `;
     avatarRemoveButton?.classList.remove('hidden');
     if (avatarUploadButton) {
@@ -419,7 +491,7 @@ function renderAvatarPreview(dataUrl, name, email) {
 }
 
 /**
- * Preenche o formulário de perfil com os dados do usuário.
+ * Populates the profile form with user data.
  * @param {any} account
  */
 function populateProfileForm(account) {
@@ -447,16 +519,24 @@ function populateProfileForm(account) {
 }
 
 /**
- * Atualiza o cabeçalho e o estado da tela de perfil.
+ * Updates the profile header and state.
  * @param {any} account
  */
 function populateProfileSummary(account) {
   if (profileNameDisplay) profileNameDisplay.textContent = account.name || 'Perfil';
   if (profileEmailDisplay) profileEmailDisplay.textContent = account.email || '';
+  if (profilePublicLink) {
+    profilePublicLink.textContent = account.nick ? `@${account.nick}` : '';
+    if (account.nick) profilePublicLink.href = `./usuario.html?nick=${encodeURIComponent(account.nick)}`;
+  }
+  // Same avatar that other users see next to the project owner's name.
+  if (profileHeaderAvatar) {
+    profileHeaderAvatar.innerHTML = renderUserAvatar(account.profile?.avatarUrl || '', 64);
+  }
 }
 
 /**
- * Exibe a área de login.
+ * Displays the login area.
  */
 function showLoginView() {
   activeAuthTab = 'login';
@@ -469,7 +549,7 @@ function showLoginView() {
 }
 
 /**
- * Exibe a área de perfil.
+ * Displays the profile area.
  * @param {any} account
  */
 function showProfileView(account) {
@@ -482,14 +562,14 @@ function showProfileView(account) {
 }
 
 // ========================================
-// HANDLERS DE AUTENTICAÇÃO
+// AUTHENTICATION HANDLERS
 // ========================================
 
 /**
- * Processa o envio do formulário de login.
+ * Processes the login form submission.
  * @param {SubmitEvent} event
  */
-function handleLoginSubmit(event) {
+async function handleLoginSubmit(event) {
   event.preventDefault();
   clearMessage(authMessage);
 
@@ -501,33 +581,82 @@ function handleLoginSubmit(event) {
     return;
   }
 
-  const account = getAccount(email);
-  if (!account || account.password !== password) {
-    showMessage(authMessage, 'E-mail ou senha inválidos.', 'error');
+  try {
+    const result = await apiRequest('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    setApiToken(result.token);
+    activeAccount = accountFromApiUser(result.user);
+    setSessionEmail(activeAccount.email);
+    loginForm?.reset();
+    showProfileView(activeAccount);
+  } catch (error) {
+    showMessage(authMessage, error.message, 'error');
+  }
+}
+
+const NICK_RULES_TEXT =
+  'O nick deve ter de 3 a 20 caracteres, usando apenas letras, números e _.';
+const NICK_DEFAULT_HINT =
+  '3 a 20 caracteres: letras, números e _. É único e não poderá ser alterado depois.';
+let nickCheckTimer = null;
+let nickCheckId = 0;
+
+/**
+ * Tells the person, while typing, whether the nick is free.
+ */
+function scheduleNickCheck() {
+  if (!signupNickInput || !signupNickStatus) return;
+  clearTimeout(nickCheckTimer);
+  const nick = signupNickInput.value.trim().toLowerCase().replace(/^@/, '');
+  signupNickStatus.className = 'input-hint';
+
+  if (!nick) {
+    signupNickStatus.textContent = NICK_DEFAULT_HINT;
+    return;
+  }
+  if (!/^[a-z0-9_]{3,20}$/.test(nick)) {
+    signupNickStatus.textContent = NICK_RULES_TEXT;
+    signupNickStatus.classList.add('nick-bad');
     return;
   }
 
-  activeSessionEmail = email;
-  setSessionEmail(email);
-  loginForm?.reset();
-  renderApp();
+  signupNickStatus.textContent = 'Verificando...';
+  const checkId = ++nickCheckId;
+  nickCheckTimer = setTimeout(async () => {
+    try {
+      const result = await apiRequest(`/nicks/${encodeURIComponent(nick)}`);
+      if (checkId !== nickCheckId) return;
+      signupNickStatus.textContent = result.available ? `@${nick} está disponível.` : result.message;
+      signupNickStatus.classList.add(result.available ? 'nick-ok' : 'nick-bad');
+    } catch {
+      if (checkId === nickCheckId) signupNickStatus.textContent = NICK_DEFAULT_HINT;
+    }
+  }, 400);
 }
 
 /**
- * Processa o envio do formulário de cadastro.
+ * Processes the registration form submission.
  * @param {SubmitEvent} event
  */
-function handleSignupSubmit(event) {
+async function handleSignupSubmit(event) {
   event.preventDefault();
   clearMessage(authMessage);
 
   const name = normalizeText(signupNameInput?.value);
+  const nick = String(signupNickInput?.value || '').trim().toLowerCase().replace(/^@/, '');
   const email = normalizeEmail(signupEmailInput?.value);
   const password = String(signupPasswordInput?.value || '');
   const confirmPassword = String(signupConfirmPasswordInput?.value || '');
 
-  if (!name || !email || !password || !confirmPassword) {
+  if (!name || !nick || !email || !password || !confirmPassword) {
     showMessage(authMessage, 'Preencha todos os campos para criar a conta.', 'error');
+    return;
+  }
+
+  if (!/^[a-z0-9_]{3,20}$/.test(nick)) {
+    showMessage(authMessage, NICK_RULES_TEXT, 'error');
     return;
   }
 
@@ -541,54 +670,55 @@ function handleSignupSubmit(event) {
     return;
   }
 
-  const accounts = getAccounts();
-  if (accounts[email]) {
-    showMessage(authMessage, 'Já existe uma conta com este e-mail.', 'error');
-    return;
+  try {
+    const result = await apiRequest('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, nick, email, password }),
+    });
+    setApiToken(result.token);
+    activeAccount = accountFromApiUser(result.user);
+    setSessionEmail(activeAccount.email);
+    signupForm?.reset();
+    showProfileView(activeAccount);
+  } catch (error) {
+    showMessage(authMessage, error.message, 'error');
   }
-
-  const account = createAccount({ name, email, password });
-  accounts[email] = account;
-  saveAccounts(accounts);
-
-  activeSessionEmail = email;
-  setSessionEmail(email);
-  signupForm?.reset();
-  renderApp();
 }
 
 // ========================================
-// HANDLERS DO PERFIL
+// PROFILE HANDLERS
 // ========================================
 
 /**
- * Atualiza a foto de perfil a partir do arquivo selecionado.
+ * Updates the profile photo from the selected file.
  * @param {Event} event
  */
-function handleAvatarChange(event) {
+async function handleAvatarChange(event) {
   const input = /** @type {HTMLInputElement | null} */ (event.target);
   const file = input?.files?.[0];
   if (!file) return;
 
   if (!file.type.startsWith('image/')) {
+    showMessage(profileMessage, 'Escolha um arquivo de imagem.', 'error');
     return;
   }
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    activeAvatarDataUrl = String(reader.result || '');
+  try {
+    activeAvatarDataUrl = await resizeImageToDataUrl(file);
+    clearMessage(profileMessage);
     renderAvatarPreview(
       activeAvatarDataUrl,
       profileNameInput?.value || '',
       profileEmailInput?.value || '',
     );
     updateProfileActionsVisibility();
-  };
-  reader.readAsDataURL(file);
+  } catch (error) {
+    showMessage(profileMessage, error.message, 'error');
+  }
 }
 
 /**
- * Remove a foto de perfil atual.
+ * Removes the current profile photo.
  */
 function handleAvatarRemove() {
   activeAvatarDataUrl = '';
@@ -602,7 +732,7 @@ function handleAvatarRemove() {
 }
 
 /**
- * Restaura o formulário de perfil a partir da conta atual.
+ * Resets the profile form from the active account.
  */
 function handleProfileReset() {
   const account = getAccount(activeSessionEmail);
@@ -617,9 +747,10 @@ function handleProfileReset() {
 }
 
 /**
- * Faz logout do usuário atual.
+ * Logs out the current user.
  */
 function handleLogout() {
+  clearApiToken();
   clearSession();
   activeSessionEmail = '';
   activeAvatarDataUrl = '';
@@ -630,10 +761,10 @@ function handleLogout() {
 }
 
 /**
- * Salva as alterações do perfil.
+ * Saves profile changes.
  * @param {SubmitEvent} event
  */
-function handleProfileSubmit(event) {
+async function handleProfileSubmit(event) {
   event.preventDefault();
   clearMessage(profileMessage);
 
@@ -656,65 +787,60 @@ function handleProfileSubmit(event) {
   const website = sanitizeUrl(profileWebsiteInput?.value || '');
 
   if (!name || !contactEmail) {
+    showMessage(profileMessage, 'Nome e e-mail de contato são obrigatórios.', 'error');
     return;
   }
 
-  const updatedAccount = {
-    ...currentAccount,
-    name,
-    email: currentAccount.email,
-    profile: {
-      avatarUrl: activeAvatarDataUrl,
-      bio,
-      contact: {
-        email: contactEmail,
+  try {
+    const result = await apiRequest('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify({
+        name,
+        contactEmail,
         phone,
-        location,
-      },
-      socials: {
-        github,
-        linkedin,
-        x,
-        website,
-      },
-    },
-  };
-
-  saveAccount(updatedAccount, currentAccount.email);
-  activeSessionEmail = currentAccount.email;
-  setSessionEmail(currentAccount.email);
-  renderApp();
+        bio,
+        avatarUrl: activeAvatarDataUrl,
+        githubUrl: github,
+        linkedinUrl: linkedin,
+        websiteUrl: website,
+      }),
+    });
+    activeAccount = accountFromApiUser(result.user);
+    setSessionEmail(activeAccount.email);
+    showProfileView(activeAccount);
+    showMessage(profileMessage, 'Perfil atualizado com sucesso.', 'success');
+  } catch (error) {
+    showMessage(profileMessage, error.message, 'error');
+  }
 }
 
 // ========================================
-// INICIALIZAÇÃO
+// INITIALIZATION
 // ========================================
 
 /**
- * Renderiza a tela correta com base na sessão atual.
+ * Renders the correct screen for the current session.
  */
-function renderApp() {
-  const sessionEmail = getSessionEmail();
-  activeSessionEmail = sessionEmail;
-
-  if (!sessionEmail) {
-    showLoginView();
-    return;
-  }
-
-  const account = getAccount(sessionEmail);
-  if (!account) {
+async function renderApp() {
+  if (!getApiToken()) {
     clearSession();
-    activeSessionEmail = '';
     showLoginView();
     return;
   }
 
-  showProfileView(account);
+  try {
+    const result = await apiRequest('/auth/me');
+    activeAccount = accountFromApiUser(result.user);
+    setSessionEmail(activeAccount.email);
+    showProfileView(activeAccount);
+  } catch (_) {
+    clearSession();
+    showLoginView();
+  }
 }
 
 /**
- * Registra eventos da tela de perfil.
+ * Registers profile screen events.
  */
 function bindEvents() {
   authTabs.forEach(tab => {
@@ -725,9 +851,16 @@ function bindEvents() {
 
   loginForm?.addEventListener('submit', handleLoginSubmit);
   signupForm?.addEventListener('submit', handleSignupSubmit);
+  signupNickInput?.addEventListener('input', scheduleNickCheck);
   profileForm?.addEventListener('submit', handleProfileSubmit);
   logoutButton?.addEventListener('click', handleLogout);
   avatarRemoveButton?.addEventListener('click', handleAvatarRemove);
+  // The file input is hidden, so let the label work with the keyboard too.
+  avatarUploadButton?.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    profileAvatarInput?.click();
+  });
   profileResetButton?.addEventListener('click', handleProfileReset);
   profileAvatarInput?.addEventListener('change', handleAvatarChange);
   profileForm?.addEventListener('input', updateProfileActionsVisibility);

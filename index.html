@@ -2,9 +2,16 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Open Teamwork</title>
     <link rel="icon" type="image/png" href="./assets/OTW Logo.png" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Open Teamwork" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="stylesheet" href="./assets/styles.css" />
   </head>
 
@@ -18,12 +25,12 @@
             class="brand-logo"
           />
           Open Teamwork
-          <span class="prototype-badge">Prototipo</span>
         </a>
         <nav class="site-nav" aria-label="Navegação principal">
           <a href="./index.html" class="nav-link active" aria-current="page"
             >Explorar</a
           >
+          <a href="./pages/pessoas.html" class="nav-link">Colaboradores</a>
           <a href="./pages/meus-projetos.html" class="nav-link"
             >Meus Projetos</a
           >
@@ -34,7 +41,19 @@
     </header>
     <div class="container">
       <h1>Projetos em Destaque</h1>
-      <p id="repo-counter">Carregando projetos...</p>
+      <div class="project-search" role="search">
+        <label class="visually-hidden" for="project-search">Buscar projetos</label>
+        <input
+          type="search"
+          id="project-search"
+          placeholder="Buscar por projeto, dono, qualificação ou tag"
+          maxlength="80"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+      </div>
+      <p id="repo-counter" aria-live="polite">Carregando projetos...</p>
       <div class="repo-grid" id="repo-grid">
         <!-- Projetos serão inseridos aqui dinamicamente -->
       </div>
@@ -102,6 +121,7 @@
       </div>
     </div>
 
+    <script src="./js/api-client.js"></script>
     <script src="./js/projects.js"></script>
   </body>
 </html>

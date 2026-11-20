@@ -2,9 +2,16 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Meus Projetos · Open Teamwork</title>
     <link rel="icon" type="image/png" href="../assets/OTW Logo.png" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Open Teamwork" />
+    <link rel="manifest" href="../manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png" />
     <link rel="stylesheet" href="../assets/styles.css" />
   </head>
   <body>
@@ -17,10 +24,10 @@
             class="brand-logo"
           />
           Open Teamwork
-          <span class="prototype-badge">Prototipo</span>
         </a>
         <nav class="site-nav" aria-label="Navegação principal">
           <a href="../index.html" class="nav-link">Explorar</a>
+          <a href="./pessoas.html" class="nav-link">Colaboradores</a>
           <a
             href="./meus-projetos.html"
             class="nav-link active"
@@ -91,16 +98,6 @@
             </div>
 
             <div class="form-group">
-              <label for="project-owner">Host *</label>
-              <input
-                type="text"
-                id="project-owner"
-                required
-                placeholder="Seu nome de usuário"
-              />
-            </div>
-
-            <div class="form-group">
               <label for="project-description">Descrição *</label>
               <textarea
                 id="project-description"
@@ -148,12 +145,23 @@
             </div>
 
             <div class="form-group">
-              <label for="project-tags">Tags (separadas por vírgula)</label>
-              <input
-                type="text"
-                id="project-tags"
-                placeholder="JavaScript, React, Node.js"
-              />
+              <label for="project-tags-entry">Tags</label>
+              <div class="tag-input" id="project-tags-box">
+                <input
+                  type="text"
+                  id="project-tags-entry"
+                  class="tag-input-field"
+                  placeholder="JavaScript, React, Node.js"
+                  maxlength="40"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  enterkeyhint="done"
+                />
+              </div>
+              <p class="input-hint">
+                Digite uma tag e use vírgula ou Enter para criá-la. Toque no ×
+                para removê-la.
+              </p>
             </div>
           </form>
         </div>
@@ -172,6 +180,7 @@
       </div>
     </div>
 
+    <script src="../js/api-client.js"></script>
     <script src="../js/meus-projetos.js"></script>
   </body>
 </html>

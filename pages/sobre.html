@@ -2,9 +2,16 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Sobre · Open Teamwork</title>
     <link rel="icon" type="image/png" href="../assets/OTW Logo.png" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Open Teamwork" />
+    <link rel="manifest" href="../manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png" />
     <link rel="stylesheet" href="../assets/styles.css" />
   </head>
   <body>
@@ -17,10 +24,10 @@
             class="brand-logo"
           />
           Open Teamwork
-          <span class="prototype-badge">Prototipo</span>
         </a>
         <nav class="site-nav" aria-label="Navegação principal">
           <a href="../index.html" class="nav-link">Explorar</a>
+          <a href="./pessoas.html" class="nav-link">Colaboradores</a>
           <a href="./meus-projetos.html" class="nav-link">Meus Projetos</a>
           <a href="./perfil.html" class="nav-link">Perfil</a>
           <a href="./sobre.html" class="nav-link active" aria-current="page"
@@ -33,24 +40,106 @@
     <div class="container">
       <h1>Sobre Open Teamwork</h1>
       <section class="page-section">
-        <h2>Vídeo de apresentação</h2>
-        <div class="video-embed" aria-label="Video explicando o projeto">
-          <iframe
-            src="https://www.youtube.com/embed/sJD4bKfjqs0"
-            title="Video explicando o projeto Open Teamwork"
-            loading="lazy"
-            allow="
-              accelerometer;
-              autoplay;
-              clipboard-write;
-              encrypted-media;
-              gyroscope;
-              picture-in-picture;
-              web-share;
-            "
-            referrerpolicy="strict-origin-when-cross-origin"
-            allowfullscreen
-          ></iframe>
+        <h2>Vídeos do protótipo</h2>
+        <div
+          class="auth-tabs video-tabs"
+          role="tablist"
+          aria-label="Vídeos do projeto"
+        >
+          <button
+            type="button"
+            class="auth-tab active"
+            role="tab"
+            id="video-tab-apresentacao"
+            aria-controls="video-panel-apresentacao"
+            aria-selected="true"
+            data-video-tab="apresentacao"
+          >
+            Apresentação do protótipo
+          </button>
+          <button
+            type="button"
+            class="auth-tab"
+            role="tab"
+            id="video-tab-detalhado"
+            aria-controls="video-panel-detalhado"
+            aria-selected="false"
+            tabindex="-1"
+            data-video-tab="detalhado"
+          >
+            Funcionamento detalhado do aplicativo
+          </button>
+        </div>
+
+        <div
+          class="video-panel"
+          role="tabpanel"
+          id="video-panel-apresentacao"
+          aria-labelledby="video-tab-apresentacao"
+          data-video-panel="apresentacao"
+        >
+          <h3 class="video-title">Apresentação do protótipo</h3>
+          <p class="video-description">
+            Pitch curto que apresenta o protótipo do Open Teamwork: o problema
+            que ele busca resolver, a ideia da plataforma e como ela conecta
+            pessoas a projetos colaborativos de acordo com suas habilidades.
+          </p>
+          <div class="video-embed" aria-label="Video explicando o projeto">
+            <iframe
+              src="https://www.youtube.com/embed/sJD4bKfjqs0"
+              title="Video explicando o projeto Open Teamwork"
+              loading="lazy"
+              allow="
+                accelerometer;
+                autoplay;
+                clipboard-write;
+                encrypted-media;
+                gyroscope;
+                picture-in-picture;
+                web-share;
+              "
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen
+            ></iframe>
+          </div>
+        </div>
+
+        <div
+          class="video-panel hidden"
+          role="tabpanel"
+          id="video-panel-detalhado"
+          aria-labelledby="video-tab-detalhado"
+          data-video-panel="detalhado"
+        >
+          <h3 class="video-title">Funcionamento detalhado do aplicativo</h3>
+          <p class="video-description">
+            O aplicativo em funcionamento, tela por tela, com a explicação da
+            parte técnica por trás do protótipo: como os dados são organizados
+            e como as telas se conectam ao banco de dados.
+          </p>
+          <!-- PLACEHOLDER: troque VIDEO_ID_AQUI pelo ID do vídeo no YouTube
+               (a parte depois de "v=" no link do vídeo). -->
+          <div
+            class="video-embed"
+            aria-label="Video com o funcionamento detalhado do aplicativo"
+          >
+            <iframe
+              src="https://www.youtube.com/embed/VIDEO_ID_AQUI"
+              title="Funcionamento detalhado do aplicativo Open Teamwork"
+              loading="lazy"
+              allow="
+                accelerometer;
+                autoplay;
+                clipboard-write;
+                encrypted-media;
+                gyroscope;
+                picture-in-picture;
+                web-share;
+              "
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen
+            ></iframe>
+          </div>
         </div>
       </section>
 
@@ -65,5 +154,7 @@
         </blockquote>
       </section>
     </div>
+
+    <script src="../js/sobre.js"></script>
   </body>
 </html>
