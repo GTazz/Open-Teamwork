@@ -1,239 +1,147 @@
 // ========================================
-// EXPLORE (index.html): project list, search, details and applications
+// EXPLORE (index.html): project list and search (cards: project-cards.js)
 // ========================================
 
-/** Qualifications shown on each card; the rest are counted in a "+N" chip. */
-const CARD_QUALIFICATIONS = 3;
-
-let projectsData = [];
 let projectSearchQuery = '';
-let applyingProjectId = null;
 
 const repoGrid = document.getElementById('repo-grid');
 const repoCounter = document.getElementById('repo-counter');
 const searchInput = document.getElementById('project-search');
-const applyModal = document.getElementById('apply-modal');
-const detailsModal = document.getElementById('details-modal');
-
-/** @param {number} id */
-function findProject(id) {
-  return projectsData.find(project => project.id === id);
-}
-
-/**
- * Open qualifications first, full ones last.
- * @param {{filled:number,total:number}[]} qualifications
- */
-function sortQualifications(qualifications) {
-  return [...(qualifications || [])].sort((a, b) => Number(a.filled >= a.total) - Number(b.filled >= b.total));
-}
-
-/**
- * Owner's contact e-mail as a mailto link. The API only sends it to people
- * who are signed in, so for visitors this renders nothing.
- * @param {string} email
- */
-function renderOwnerEmail(email) {
-  if (!looksLikeEmail(email)) return '';
-  const value = String(email).trim();
-  return `
-    <a class="owner-email" href="mailto:${escapeHtmlText(value)}" title="Enviar e-mail para o dono do projeto">
-      ${icon('mail', 13)}<span>${escapeHtmlText(value)}</span>
-    </a>`;
-}
-
-/**
- * Label and style of the apply button for the signed-in person's status.
- * @param {object} project
- */
-function applyButtonState(project) {
-  if (!isUserAuthenticated()) {
-    return { label: 'Candidatar-se', iconName: 'plus', className: 'is-disabled', title: 'Entre na sua conta para se candidatar.' };
-  }
-  if (project.ownerId === getCurrentUserId()) {
-    return { label: 'Seu projeto', iconName: 'repo', className: 'own', title: 'Gerencie este projeto em "Meus Projetos".' };
-  }
-  switch (project.myApplicationStatus) {
-    case 'pending':
-      return { label: 'Ver candidatura', iconName: 'pencil', className: 'applied', title: 'Candidatura enviada. Você pode alterá-la.' };
-    case 'accepted':
-      return { label: 'Você participa', iconName: 'check', className: 'accepted', title: 'Sua candidatura foi aprovada.' };
-    default:
-      return { label: 'Candidatar-se', iconName: 'plus', className: '', title: '' };
-  }
-}
-
-/** @param {object} project */
-function renderApplyButtonContent(project) {
-  const state = applyButtonState(project);
-  return `${icon(state.iconName, 14)}<span>${state.label}</span>`;
-}
-
-/** @param {HTMLButtonElement} button @param {object} project */
-function updateApplyButton(button, project) {
-  const state = applyButtonState(project);
-  button.className = `btn btn-primary apply-button ${state.className}`.trim();
-  button.title = state.title;
-  button.innerHTML = renderApplyButtonContent(project);
-}
-
-/**
- * Card shown in the project grid.
- * @param {object} project
- */
-function createProjectCard(project) {
-  const url = safeHttpUrl(project.url);
-  const name = escapeHtmlText(project.name);
-  const state = applyButtonState(project);
-  const qualifications = sortQualifications(project.qualifications);
-  const hidden = qualifications.length - CARD_QUALIFICATIONS;
-
-  return `
-    <article class="repo-card" data-project-id="${Number(project.id)}">
-      <header class="repo-header">
-        ${icon('repo', 16, 'repo-icon')}
-        ${url
-          ? `<a href="${escapeHtmlText(url)}" class="repo-name" target="_blank" rel="noopener noreferrer">${name}</a>`
-          : `<span class="repo-name">${name}</span>`}
-      </header>
-      <div class="repo-owner">
-        ${renderOwnerChip(project.ownerNick, project.owner, project.ownerAvatarUrl, 20)}
-        ${renderOwnerEmail(project.ownerEmail)}
-      </div>
-      <p class="repo-description">${escapeHtmlText(project.description)}</p>
-      <div class="chip-list repo-qualifications">
-        ${qualifications.slice(0, CARD_QUALIFICATIONS).map(renderQualificationChip).join('')}
-        ${hidden > 0 ? `<span class="more-chip" title="Veja todas em &quot;Saiba mais&quot;">+${hidden}</span>` : ''}
-      </div>
-      <footer class="repo-footer">
-        <button type="button" class="btn btn-outline" data-action="details">${icon('info', 14)}<span>Saiba mais</span></button>
-        <button type="button" class="btn btn-primary apply-button ${state.className}" data-action="apply" title="${escapeHtmlText(state.title)}">
-          ${renderApplyButtonContent(project)}
-        </button>
-      </footer>
-    </article>`;
-}
+const filterToggle = document.getElementById('filter-toggle');
+const filterPanel = document.getElementById('filter-panel');
 
 // ========================================
-// DETAILS MODAL
+// FILTERS
+// Filters add up (a project has to pass every active one). An option that
+// would contradict an active one is disabled instead of giving an empty list.
+// The active filters live in the address (?filtros=a,b) so they survive a
+// reload and can be shared. "personal" filters need a signed-in person.
 // ========================================
 
-/** @param {number} projectId */
-function openDetailsModal(projectId) {
-  const project = findProject(projectId);
-  if (!project) return;
+const hasStatus = (project, status) => (project.myApplicationStatuses || []).includes(status);
+const isOwnProject = project => project.ownerId === getCurrentUserId();
 
-  const url = safeHttpUrl(project.url);
-  document.getElementById('details-modal-title').innerHTML =
-    `${icon('repo', 20, 'repo-icon')}<span>${escapeHtmlText(project.name)}</span>`;
-  document.getElementById('details-content').innerHTML = `
-    <div class="details-header">
-      <div class="details-owner">
-        ${renderOwnerChip(project.ownerNick, project.owner, project.ownerAvatarUrl, 24)}
-        ${renderOwnerEmail(project.ownerEmail)}
-      </div>
-      ${url ? `<a href="${escapeHtmlText(url)}" class="details-link" target="_blank" rel="noopener noreferrer">Abrir projeto ${icon('external', 14)}</a>` : ''}
-    </div>
-    <section class="details-section">
-      <h3>Descrição</h3>
-      <p class="details-description">${escapeHtmlText(project.description)}</p>
-    </section>
-    <section class="details-section">
-      <h3>Qualificações necessárias</h3>
-      <div class="chip-list">${sortQualifications(project.qualifications).map(renderQualificationChip).join('')}</div>
-    </section>
-    ${(project.tags || []).length ? `
-      <section class="details-section">
-        <h3>Tags</h3>
-        <div class="chip-list">${project.tags.map(renderTag).join('')}</div>
-      </section>` : ''}`;
+const PROJECT_FILTERS = [
+  { value: 'com-vagas', group: 'Vagas', label: 'Com vagas abertas', test: project => !isProjectFull(project) },
+  {
+    value: 'nao-candidatei', group: 'Minha participação', label: 'Ainda não me candidatei', personal: true,
+    conflicts: ['pendentes', 'participando', 'recusadas', 'meus'],
+    test: project => !isOwnProject(project) && !(project.myApplicationStatuses || []).length,
+  },
+  {
+    value: 'pendentes', group: 'Minha participação', label: 'Candidatura pendente', personal: true,
+    conflicts: ['nao-candidatei', 'meus'], test: project => hasStatus(project, 'pending'),
+  },
+  {
+    value: 'participando', group: 'Minha participação', label: 'Participando', personal: true,
+    conflicts: ['nao-candidatei', 'meus'], test: project => hasStatus(project, 'accepted'),
+  },
+  {
+    value: 'recusadas', group: 'Minha participação', label: 'Candidatura recusada', personal: true,
+    conflicts: ['nao-candidatei', 'meus'], test: project => hasStatus(project, 'rejected'),
+  },
+  {
+    value: 'meus', group: 'Minha participação', label: 'Meus projetos', personal: true,
+    conflicts: ['nao-candidatei', 'pendentes', 'participando', 'recusadas'], test: isOwnProject,
+  },
+];
 
-  const applyButton = document.getElementById('details-apply');
-  applyButton.dataset.projectId = String(project.id);
-  updateApplyButton(applyButton, project);
-  openModal(detailsModal);
+const activeFilters = new Set(readFiltersFromUrl());
+
+/** Valid, non-contradicting filters from the address. */
+function readFiltersFromUrl() {
+  const requested = (new URLSearchParams(window.location.search).get('filtros') || '').split(',');
+  const chosen = [];
+  requested.forEach(value => {
+    const filter = PROJECT_FILTERS.find(item => item.value === value);
+    if (!filter || chosen.includes(value) || (filter.personal && !isUserAuthenticated())) return;
+    if (chosen.some(other => (filter.conflicts || []).includes(other))) return;
+    chosen.push(value);
+  });
+  return chosen;
 }
 
-// ========================================
-// APPLY MODAL
-// ========================================
+function writeFiltersToUrl() {
+  const url = new URL(window.location.href);
+  if (activeFilters.size) url.searchParams.set('filtros', [...activeFilters].join(','));
+  else url.searchParams.delete('filtros');
+  history.replaceState(null, '', url.href.replace(/%2C/gi, ','));
+}
 
-/** @param {number} projectId */
-async function openApplyModal(projectId) {
-  if (!isUserAuthenticated()) {
-    redirectToLogin();
-    return;
-  }
-  const project = findProject(projectId);
-  if (!project) return;
-  if (project.ownerId === getCurrentUserId()) {
-    window.location.href = pageUrl('meus-projetos');
-    return;
-  }
+/** @param {object} filter @returns {boolean} True when it clashes with an active filter. */
+function contradictsActive(filter) {
+  return (filter.conflicts || []).some(value => activeFilters.has(value));
+}
 
-  let application;
-  try {
-    application = (await apiRequest(`/projects/${projectId}/my-application`)).application;
-  } catch (error) {
-    alert(error.message);
-    return;
-  }
+function passesFilters(project) {
+  return PROJECT_FILTERS.every(filter => !activeFilters.has(filter.value) || filter.test(project));
+}
 
-  applyingProjectId = projectId;
-  const pending = new Set(application?.qualificationIds || []);
-  const rejected = new Set(application?.rejectedQualificationIds || []);
-  const accepted = new Set(application?.acceptedQualificationIds || []);
-
-  document.getElementById('apply-modal-repo').textContent = `${project.owner} / ${project.name}`;
-  document.getElementById('qualifications-container').innerHTML = project.qualifications.map(q => {
-    const isFull = q.filled >= q.total;
-    const isRejected = rejected.has(q.id);
-    const isAccepted = accepted.has(q.id);
-    const locked = isFull || isRejected || isAccepted;
-    const note = isAccepted ? '<span class="qualification-note accepted">Aprovada</span>'
-      : isRejected ? '<span class="qualification-note rejected">Recusada</span>'
-        : isFull ? '<span class="qualification-note">Sem vagas</span>' : '';
+function renderFilterPanel() {
+  const signedIn = isUserAuthenticated();
+  const groups = [...new Set(PROJECT_FILTERS.map(filter => filter.group))];
+  filterPanel.innerHTML = groups.map(group => {
+    const inGroup = PROJECT_FILTERS.filter(filter => filter.group === group);
+    const options = inGroup.map(filter => {
+      const checked = activeFilters.has(filter.value);
+      const disabled = !checked && ((filter.personal && !signedIn) || contradictsActive(filter));
+      return `
+        <label class="filter-option${disabled ? ' is-disabled' : ''}">
+          <input type="checkbox" value="${filter.value}"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''} />
+          <span>${escapeHtmlText(filter.label)}</span>
+        </label>`;
+    }).join('');
+    const needsLogin = !signedIn && inGroup.some(filter => filter.personal);
     return `
-      <label class="qualification-option${locked ? ' locked' : ''}${isRejected ? ' rejected' : ''}${isAccepted ? ' accepted' : ''}">
-        <input type="checkbox" data-qualification-id="${Number(q.id)}"
-          ${!isRejected && !isAccepted && pending.has(q.id) ? 'checked' : ''} ${locked ? 'disabled' : ''} />
-        ${icon('person', 14, 'person-icon')}
-        <span class="qualification-name">${escapeHtmlText(q.name)}</span>
-        ${note}
-        <span class="qualification-count">${Number(q.filled) || 0}/${Number(q.total) || 0}</span>
-      </label>`;
-  }).join('');
-
-  openModal(applyModal);
+      <div class="filter-group">
+        <p class="filter-group-title">${escapeHtmlText(group)}</p>
+        ${options}
+        ${needsLogin ? '<p class="filter-note">Entre na sua conta para usar estes filtros.</p>' : ''}
+      </div>`;
+  }).join('')
+    + (activeFilters.size ? '<button type="button" class="btn btn-small btn-outline filter-clear" data-filter-clear>Limpar filtros</button>' : '');
+  filterToggle.classList.toggle('is-active', activeFilters.size > 0);
 }
 
-async function confirmApply() {
-  if (applyingProjectId == null) return;
-  const qualificationIds = [...document.querySelectorAll('#qualifications-container input:checked')]
-    .map(input => Number(input.dataset.qualificationId));
-
-  const confirmButton = document.getElementById('confirm-apply');
-  confirmButton.disabled = true;
-  try {
-    await apiRequest(`/projects/${applyingProjectId}/applications`, {
-      method: 'POST',
-      body: JSON.stringify({ qualificationIds }),
-    });
-  } catch (error) {
-    alert(error.message);
-    return;
-  } finally {
-    confirmButton.disabled = false;
-  }
-
-  const project = findProject(applyingProjectId);
-  if (project && project.myApplicationStatus !== 'accepted') {
-    project.myApplicationStatus = qualificationIds.length ? 'pending' : null;
-  }
-  const card = repoGrid.querySelector(`[data-project-id="${applyingProjectId}"]`);
-  if (card && project) card.outerHTML = createProjectCard(project);
-  closeModal(applyModal);
+/** @param {boolean} open */
+function setFilterPanelOpen(open) {
+  filterPanel.classList.toggle('hidden', !open);
+  filterToggle.setAttribute('aria-expanded', String(open));
 }
+
+filterToggle.addEventListener('click', () => setFilterPanelOpen(filterPanel.classList.contains('hidden')));
+
+filterPanel.addEventListener('change', event => {
+  const input = event.target.closest('input[type="checkbox"]');
+  if (!input) return;
+  if (input.checked) activeFilters.add(input.value);
+  else activeFilters.delete(input.value);
+  writeFiltersToUrl();
+  renderProjects();
+  filterPanel.querySelector(`input[value="${input.value}"]`)?.focus();
+});
+
+filterPanel.addEventListener('click', event => {
+  if (!event.target.closest('[data-filter-clear]')) return;
+  activeFilters.clear();
+  writeFiltersToUrl();
+  renderProjects();
+  filterToggle.focus();
+});
+
+// Closes on a click outside the menu or on Esc.
+document.addEventListener('click', event => {
+  if (!event.target.closest('[data-filter-menu]')) setFilterPanelOpen(false);
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !filterPanel.classList.contains('hidden')) {
+    setFilterPanelOpen(false);
+    filterToggle.focus();
+  }
+});
+
+// After an application the card may no longer match the filters.
+document.addEventListener('project:updated', () => renderProjects());
 
 // ========================================
 // SEARCH
@@ -297,9 +205,10 @@ function scoreProject(project, terms) {
 
 /** Projects that match the search, most relevant first (newest first without a search). */
 function getVisibleProjects() {
+  const filtered = projectsData.filter(passesFilters);
   const terms = normalizeSearchText(projectSearchQuery).split(/\s+/).filter(Boolean);
-  if (!terms.length) return projectsData;
-  return projectsData
+  if (!terms.length) return filtered;
+  return filtered
     .map((project, index) => ({ project, index, score: scoreProject(project, terms) }))
     .filter(entry => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.index - b.index)
@@ -307,26 +216,30 @@ function getVisibleProjects() {
 }
 
 function renderProjects() {
+  renderFilterPanel();
   const matches = getVisibleProjects();
   const query = projectSearchQuery.trim();
   const total = projectsData.length;
+  const filtering = activeFilters.size > 0;
 
   if (!total) {
     repoGrid.innerHTML = renderEmptyState('Nenhum projeto ainda', 'Crie o primeiro em "Meus Projetos".');
   } else if (!matches.length) {
     repoGrid.innerHTML = renderEmptyState(
       'Nenhum projeto encontrado',
-      'Tente buscar pelo nome do projeto, por quem criou, por uma qualificação ou por uma tag.'
+      query
+        ? 'Tente buscar pelo nome do projeto, por quem criou, por uma qualificação ou por uma tag.'
+          + (filtering ? ' Os filtros também estão ativos.' : '')
+        : 'Nenhum projeto atende a todos os filtros escolhidos. Tente desmarcar algum.'
     );
   } else {
     repoGrid.innerHTML = matches.map(createProjectCard).join('');
   }
 
-  repoCounter.textContent = query
-    ? (matches.length
-      ? `${matches.length} de ${total} ${total === 1 ? 'projeto' : 'projetos'} para "${query}"`
-      : `Nenhum projeto encontrado para "${query}".`)
-    : `${total} ${total === 1 ? 'projeto' : 'projetos'}`;
+  const noun = total === 1 ? 'projeto' : 'projetos';
+  repoCounter.textContent = !query && !filtering
+    ? `${total} ${noun}`
+    : `${matches.length} de ${total} ${noun}${query ? ` para "${query}"` : ''}`;
 }
 
 // ========================================
@@ -334,6 +247,7 @@ function renderProjects() {
 // ========================================
 
 async function loadProjects() {
+  repoGrid.innerHTML = renderSkeleton('repo', 6);
   try {
     projectsData = (await apiRequest('/projects')).projects;
     renderProjects();
@@ -342,23 +256,6 @@ async function loadProjects() {
     repoGrid.innerHTML = renderEmptyState('Erro ao carregar projetos', 'Tente novamente em instantes.', true);
   }
 }
-
-repoGrid.addEventListener('click', event => {
-  const button = event.target.closest('button[data-action]');
-  const card = event.target.closest('.repo-card');
-  if (!button || !card) return;
-  const projectId = Number(card.dataset.projectId);
-  if (button.dataset.action === 'details') openDetailsModal(projectId);
-  else openApplyModal(projectId);
-});
-
-document.getElementById('details-apply').addEventListener('click', event => {
-  const projectId = Number(event.currentTarget.dataset.projectId);
-  closeModal(detailsModal);
-  openApplyModal(projectId);
-});
-
-document.getElementById('confirm-apply').addEventListener('click', confirmApply);
 
 let searchTimer = null;
 searchInput.addEventListener('input', () => {

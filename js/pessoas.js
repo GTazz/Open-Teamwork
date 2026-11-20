@@ -42,11 +42,11 @@ async function loadPeople(reset) {
   const requestId = ++peopleRequestId;
   if (reset) {
     peopleOffset = 0;
-    peopleGrid.innerHTML = '';
+    peopleGrid.innerHTML = renderSkeleton('person', 6);
     peopleMoreButton.classList.add('hidden');
     peopleCounter.textContent = 'Carregando colaboradores...';
   }
-  peopleMoreButton.disabled = true;
+  if (!reset) setButtonBusy(peopleMoreButton, true);
 
   try {
     const params = new URLSearchParams({ limit: String(PEOPLE_PAGE_SIZE), offset: String(peopleOffset) });
@@ -54,7 +54,9 @@ async function loadPeople(reset) {
     const { users, hasMore } = await apiRequest(`/users?${params.toString()}`);
     if (requestId !== peopleRequestId) return;
 
-    peopleGrid.insertAdjacentHTML('beforeend', users.map(renderPersonCard).join(''));
+    const cards = users.map(renderPersonCard).join('');
+    if (reset) peopleGrid.innerHTML = cards;
+    else peopleGrid.insertAdjacentHTML('beforeend', cards);
     peopleOffset += users.length;
 
     if (peopleOffset === 0) {
@@ -65,11 +67,12 @@ async function loadPeople(reset) {
       peopleCounter.textContent = `Exibindo ${peopleOffset} ${peopleOffset === 1 ? 'colaborador' : 'colaboradores'}${hasMore ? ' (há mais)' : ''}`;
     }
     peopleMoreButton.classList.toggle('hidden', !hasMore);
-    peopleMoreButton.disabled = false;
+    setButtonBusy(peopleMoreButton, false);
   } catch (error) {
     if (requestId !== peopleRequestId) return;
     peopleCounter.textContent = error.message;
-    peopleMoreButton.disabled = false;
+    if (reset) peopleGrid.innerHTML = '';
+    setButtonBusy(peopleMoreButton, false);
   }
 }
 

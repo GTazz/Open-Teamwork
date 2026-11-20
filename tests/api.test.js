@@ -17,7 +17,7 @@ if (!process.env.TURSO_DATABASE_URL) {
   process.env.DATABASE_FILE = path.join(tempDir, 'test.sqlite');
 }
 
-const { app, db, ready } = require('../server');
+const { app, db, ready, mailer } = require('../server');
 
 const PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
@@ -60,13 +60,28 @@ async function api(pathname, { method = 'GET', body, token, raw } = {}) {
   return { status: response.status, body: json, headers: response.headers };
 }
 
-async function register(name, nick, email = `${nick}@teste.com`) {
+/** Last 6-digit code e-mailed to this address (tests keep e-mails in memory). */
+function lastCodeSentTo(email) {
+  const message = [...mailer.outbox].reverse().find(item => item.to === email.toLowerCase());
+  assert.ok(message, `nenhum e-mail enviado para ${email}`);
+  return message.text.match(/\b(\d{6})\b/)[1];
+}
+
+/** Signs up and confirms the e-mail with the code, like a real person. */
+async function register(name, nick, email = `${nick}@teste.com`, password = 'senha123') {
   const result = await api('/api/auth/register', {
     method: 'POST',
-    body: { name, nick, email, password: 'senha123' },
+    body: { name, nick, email, password },
   });
   assert.equal(result.status, 201, JSON.stringify(result.body));
-  return { token: result.body.token, user: result.body.user };
+  assert.equal(result.body.verificationRequired, true);
+  assert.equal(result.body.token, undefined, 'sem token antes de confirmar o e-mail');
+  const verified = await api('/api/auth/verify-email', {
+    method: 'POST',
+    body: { email, code: lastCodeSentTo(email) },
+  });
+  assert.equal(verified.status, 200, JSON.stringify(verified.body));
+  return { token: verified.body.token, user: verified.body.user };
 }
 
 const goodProject = {
@@ -245,7 +260,9 @@ test('perfil público: contato só para pessoas logadas', async () => {
   assert.ok(!JSON.stringify(anonymous.body).includes('99999-0000'), 'telefone não vaza');
   assert.ok(!JSON.stringify(anonymous.body).includes('contato@alice.com'), 'e-mail não vaza');
   assert.equal(user.projects.length, 1);
-  assert.ok(!('ownerAvatarUrl' in user.projects[0]));
+  // Same card data as GET /api/projects (the profile reuses the Explorar cards).
+  assert.ok('ownerAvatarUrl' in user.projects[0]);
+  assert.ok(!('myApplicationStatus' in user.projects[0]));
 
   const visitor = (await api('/api/users/alice_dev', { token: bob.token })).body.user;
   assert.equal(visitor.contactVisible, true);
@@ -329,7 +346,9 @@ test('candidaturas: fluxo completo, vagas e permissões', async () => {
   // The project list carries the viewer's status, so the page needs no extra request per card.
   const listed = (await api('/api/projects', { token: bob.token })).body.projects;
   assert.equal(listed.find(p => p.id === project.id).myApplicationStatus, 'pending');
+  assert.deepEqual(listed.find(p => p.id === project.id).myApplicationStatuses, ['pending']);
   assert.ok(listed.filter(p => p.id !== project.id).every(p => p.myApplicationStatus === null));
+  assert.ok(listed.filter(p => p.id !== project.id).every(p => p.myApplicationStatuses.length === 0));
   const anonymousList = (await api('/api/projects')).body.projects;
   assert.ok(anonymousList.every(p => !('myApplicationStatus' in p)));
   assert.deepEqual(mine.qualificationIds.sort(), [dev.id, designer.id].sort());
@@ -429,4 +448,104 @@ test('segurança: JSON inválido e limite de tentativas de login', async () => {
   });
   assert.equal(ok.status, 200, 'outras contas não são afetadas');
   assert.equal(ok.body.user.nick, 'bob_lima');
+});
+
+test('login: aceita e-mail ou nick (com ou sem @)', async () => {
+  for (const login of ['bob_lima@teste.com', 'bob_lima', '@Bob_Lima']) {
+    const result = await api('/api/auth/login', { method: 'POST', body: { login, password: 'senha123' } });
+    assert.equal(result.status, 200, `login com "${login}"`);
+    assert.equal(result.body.user.nick, 'bob_lima');
+  }
+  const wrong = await api('/api/auth/login', { method: 'POST', body: { login: 'bob_lima', password: 'errada' } });
+  assert.equal(wrong.status, 401);
+  assert.equal(wrong.body.error, 'Login ou senha incorretos.');
+  const invalid = await api('/api/auth/login', { method: 'POST', body: { login: 'nick inválido!', password: 'x' } });
+  assert.equal(invalid.status, 401);
+});
+
+test('cadastro: o e-mail precisa ser confirmado com o código', async () => {
+  const email = 'carla@teste.com';
+  const signup = await api('/api/auth/register', {
+    method: 'POST',
+    body: { name: 'Carla Dias', nick: 'carla_d', email, password: 'senha123' },
+  });
+  assert.equal(signup.status, 201);
+  const code = lastCodeSentTo(email);
+  assert.match(mailer.outbox.at(-1).subject, /\d{6}/);
+
+  // Sem confirmar: não entra, não aparece na lista nem tem perfil público.
+  const blocked = await api('/api/auth/login', { method: 'POST', body: { login: 'carla_d', password: 'senha123' } });
+  assert.equal(blocked.status, 403);
+  assert.equal(blocked.body.verificationRequired, true);
+  assert.equal(blocked.body.email, email);
+  const wrongPassword = await api('/api/auth/login', { method: 'POST', body: { login: email, password: 'errada' } });
+  assert.equal(wrongPassword.status, 401, 'senha errada não revela que falta confirmar');
+  assert.equal((await api('/api/users/carla_d')).status, 404);
+  assert.ok(!(await api('/api/users?query=carla')).body.users.length);
+
+  // O login pediu um código há pouco: o reenvio respeita o intervalo.
+  assert.equal(lastCodeSentTo(email), code, 'não manda outro código antes de 1 minuto');
+
+  // Código errado conta tentativa; o certo confirma e devolve a sessão.
+  const wrong = await api('/api/auth/verify-email', { method: 'POST', body: { email, code: code === '000000' ? '111111' : '000000' } });
+  assert.equal(wrong.status, 400);
+  const ok = await api('/api/auth/verify-email', { method: 'POST', body: { email, code } });
+  assert.equal(ok.status, 200);
+  assert.ok(ok.body.token);
+  assert.equal(ok.body.user.nick, 'carla_d');
+
+  const again = await api('/api/auth/verify-email', { method: 'POST', body: { email, code } });
+  assert.equal(again.status, 409, 'código usado não vale de novo');
+  assert.equal((await api('/api/auth/login', { method: 'POST', body: { login: 'carla_d', password: 'senha123' } })).status, 200);
+  assert.equal((await api('/api/users/carla_d')).status, 200);
+});
+
+test('cadastro: 5 códigos errados invalidam o código', async () => {
+  const email = 'davi@teste.com';
+  await api('/api/auth/register', { method: 'POST', body: { name: 'Davi Reis', nick: 'davi_r', email, password: 'senha123' } });
+  const code = lastCodeSentTo(email);
+  const wrongCode = code === '123456' ? '654321' : '123456';
+  for (let i = 0; i < 5; i += 1) {
+    assert.equal((await api('/api/auth/verify-email', { method: 'POST', body: { email, code: wrongCode } })).status, 400);
+  }
+  const late = await api('/api/auth/verify-email', { method: 'POST', body: { email, code } });
+  assert.equal(late.status, 400, 'depois de 5 erros nem o código certo vale');
+});
+
+test('cadastro: e-mail não confirmado pode recomeçar o cadastro', async () => {
+  const email = 'eva@teste.com';
+  await api('/api/auth/register', { method: 'POST', body: { name: 'Eva', nick: 'eva_um', email, password: 'senha123' } });
+  const redo = await api('/api/auth/register', { method: 'POST', body: { name: 'Eva Lima', nick: 'eva_dois', email, password: 'outra123' } });
+  assert.equal(redo.status, 201, 'o cadastro não confirmado é substituído');
+  const free = await api('/api/nicks/eva_um');
+  assert.equal(free.body.available, true, 'o nick do cadastro antigo fica livre');
+  const verified = await api('/api/auth/verify-email', { method: 'POST', body: { email, code: lastCodeSentTo(email) } });
+  assert.equal(verified.body.user.nick, 'eva_dois');
+
+  const taken = await api('/api/auth/register', { method: 'POST', body: { name: 'Outra', nick: 'eva_tres', email, password: 'senha123' } });
+  assert.equal(taken.status, 409, 'e-mail confirmado não pode ser cadastrado de novo');
+});
+
+test('senha: recuperação por código no e-mail', async () => {
+  const forgot = await api('/api/auth/forgot-password', { method: 'POST', body: { login: '@bob_lima' } });
+  assert.equal(forgot.status, 200);
+  const unknown = await api('/api/auth/forgot-password', { method: 'POST', body: { login: 'ninguem@teste.com' } });
+  assert.deepEqual(unknown.body, forgot.body, 'mesma resposta para conta que não existe');
+
+  const code = lastCodeSentTo('bob_lima@teste.com');
+  assert.match(mailer.outbox.at(-1).subject, /redefinir/);
+  const short = await api('/api/auth/reset-password', { method: 'POST', body: { login: 'bob_lima', code, password: '123' } });
+  assert.equal(short.status, 400);
+  const wrong = await api('/api/auth/reset-password', {
+    method: 'POST', body: { login: 'bob_lima', code: code === '000000' ? '111111' : '000000', password: 'novaSenha1' },
+  });
+  assert.equal(wrong.status, 400);
+
+  const reset = await api('/api/auth/reset-password', { method: 'POST', body: { login: 'bob_lima', code, password: 'novaSenha1' } });
+  assert.equal(reset.status, 200);
+  assert.ok(reset.body.token);
+  assert.equal((await api('/api/auth/login', { method: 'POST', body: { login: 'bob_lima', password: 'senha123' } })).status, 401);
+  assert.equal((await api('/api/auth/login', { method: 'POST', body: { login: 'bob_lima', password: 'novaSenha1' } })).status, 200);
+  const reused = await api('/api/auth/reset-password', { method: 'POST', body: { login: 'bob_lima', code, password: 'outraSenha2' } });
+  assert.equal(reused.status, 400, 'o código só vale uma vez');
 });

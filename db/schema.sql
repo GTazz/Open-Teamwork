@@ -7,7 +7,22 @@ CREATE TABLE IF NOT EXISTS user (
   -- (trigger) are created by ensureNickConstraints() in lib/db.js.
   nick TEXT COLLATE NOCASE,
   password_hash TEXT NOT NULL,
+  -- NULL until the person types the code sent to the e-mail. Databases created
+  -- before this column get it from ensureEmailVerification() in lib/db.js.
+  email_verified_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- One-time 6-digit codes sent by e-mail (account check or password reset).
+-- Only a keyed hash of the code is stored. Times are Unix milliseconds.
+CREATE TABLE IF NOT EXISTS email_code (
+  user_id INTEGER NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  purpose TEXT NOT NULL CHECK (purpose IN ('verify', 'reset')),
+  code_hash TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  sent_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, purpose)
 );
 
 CREATE TABLE IF NOT EXISTS profile (

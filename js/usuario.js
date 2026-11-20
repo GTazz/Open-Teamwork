@@ -69,21 +69,6 @@ function renderContactCard(user) {
     </section>`;
 }
 
-/** Card for one of the person's projects. */
-function renderUserProject(project) {
-  const url = safeHttpUrl(project.url);
-  const title = url
-    ? `<a href="${escapeHtmlText(url)}" target="_blank" rel="noopener noreferrer">${escapeHtmlText(project.name)}</a>`
-    : escapeHtmlText(project.name);
-  return `
-    <article class="project-card">
-      <h3 class="project-card-title">${icon('repo', 16, 'repo-icon')}${title}</h3>
-      <p class="project-card-description">${escapeHtmlText(project.description)}</p>
-      <div class="chip-list">${(project.qualifications || []).map(renderQualificationChip).join('')}</div>
-      ${(project.tags || []).length ? `<div class="chip-list">${project.tags.map(renderTag).join('')}</div>` : ''}
-    </article>`;
-}
-
 /** Draws the whole public profile. */
 function renderUserProfile(user) {
   document.title = `${user.name} (@${user.nick}) · Open Teamwork`;
@@ -94,6 +79,7 @@ function renderUserProfile(user) {
     renderLinkPill('Site pessoal', user.websiteUrl),
   ].join('');
   const projects = user.projects || [];
+  projectsData = projects; // used by the shared cards (project-cards.js)
 
   userView.innerHTML = `
     <section class="card user-hero-card">
@@ -117,7 +103,7 @@ function renderUserProfile(user) {
     <section class="user-section">
       <h2>Projetos <span class="counter">${projects.length}</span></h2>
       ${projects.length
-        ? `<div class="user-projects">${projects.map(renderUserProject).join('')}</div>`
+        ? `<div class="repo-grid">${projects.map(createProjectCard).join('')}</div>`
         : '<p class="muted">Esta pessoa ainda não criou projetos.</p>'}
     </section>`;
 }
@@ -128,6 +114,7 @@ function renderUserProfile(user) {
     showUserState('Nenhuma pessoa selecionada. Escolha alguém na lista de colaboradores.', true);
     return;
   }
+  userView.innerHTML = `<div class="skeleton-user">${renderSkeleton('profile')}<div class="repo-grid">${renderSkeleton('repo', 2)}</div></div>`;
   try {
     renderUserProfile((await apiRequest(`/users/${encodeURIComponent(nick)}`)).user);
   } catch (error) {

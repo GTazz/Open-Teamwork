@@ -10,6 +10,8 @@ const jwt = require('jsonwebtoken');
 const { createDb } = require('./lib/db');
 const { NICK_PATTERN, checkNick } = require('./lib/nick');
 const { securityHeaders, createRateLimiter, mountStaticFiles } = require('./lib/security');
+const { createMailer } = require('./lib/mailer');
+const { createEmailCodes } = require('./lib/email-codes');
 
 const rootDir = __dirname;
 const isProduction = process.env.NODE_ENV === 'production';
@@ -28,6 +30,17 @@ if (isProduction && (jwtSecret.length < 32 || /troque|change-?me|example/i.test(
 
 const db = createDb({ rootDir });
 const ready = db.init();
+const mailer = createMailer();
+// EMAIL_LOGO_URL (optional): public address of the logo shown in e-mails.
+const emailCodes = createEmailCodes({
+  db,
+  mailer,
+  secret: jwtSecret,
+  ...(process.env.EMAIL_LOGO_URL ? { logoUrl: process.env.EMAIL_LOGO_URL } : {}),
+});
+if (isProduction && mailer.kind !== 'brevo') {
+  console.warn('BREVO_API_KEY/MAIL_FROM not set: sign-up and password reset e-mails will fail.');
+}
 ready.catch(() => {}); // Failures are reported by the middleware below and by start-up.
 
 if (isProduction && db.kind === 'sqlite' && !process.env.ALLOW_LOCAL_DB) {
@@ -93,6 +106,13 @@ app.use('/api', apiLimiter.middleware());
 app.use('/api/auth/register', registerLimiter.middleware('Muitos cadastros deste endereço. Tente mais tarde.'));
 app.use('/api/auth/login', loginIpLimiter.middleware('Muitas tentativas de login. Aguarde alguns minutos.'));
 app.use('/api/nicks', nickLimiter.middleware());
+// Codes: typing (verify/reset) and asking for new ones (resend/forgot).
+const codeIpLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 30 * scale });
+const codeEmailLimiter = createRateLimiter({ windowMs: 60 * 60_000, max: 10 * scale });
+app.use(
+  ['/api/auth/verify-email', '/api/auth/reset-password', '/api/auth/resend-code', '/api/auth/forgot-password'],
+  codeIpLimiter.middleware('Muitas tentativas. Aguarde alguns minutos.')
+);
 
 mountStaticFiles(app, rootDir);
 
@@ -274,6 +294,7 @@ async function listProjects(whereSql = '', args = [], { includeOwnerContact = fa
   );
 
   const viewerStatus = new Map();
+  const viewerStatuses = new Map();
   if (viewerId) {
     const rows = await db.all('SELECT project_id, status FROM application WHERE user_id = ?', [viewerId]);
     rows.forEach(({ project_id: projectId, status }) => {
@@ -281,6 +302,8 @@ async function listProjects(whereSql = '', args = [], { includeOwnerContact = fa
       if (!current || APPLICATION_STATUS_PRIORITY[status] < APPLICATION_STATUS_PRIORITY[current]) {
         viewerStatus.set(projectId, status);
       }
+      if (!viewerStatuses.has(projectId)) viewerStatuses.set(projectId, new Set());
+      viewerStatuses.get(projectId).add(status);
     });
   }
 
@@ -303,7 +326,12 @@ async function listProjects(whereSql = '', args = [], { includeOwnerContact = fa
     url: project.url || '',
     tags: parseTags(project.tags),
     qualifications: byProject.get(project.id) || [],
-    ...(viewerId ? { myApplicationStatus: viewerStatus.get(project.id) || null } : {}),
+    // myApplicationStatus: the one status the apply button shows (pending wins).
+    // myApplicationStatuses: every status the person has in the project (filters).
+    ...(viewerId ? {
+      myApplicationStatus: viewerStatus.get(project.id) || null,
+      myApplicationStatuses: [...(viewerStatuses.get(project.id) || [])].sort(),
+    } : {}),
   }));
 }
 
@@ -395,6 +423,23 @@ const INSERT_QUALIFICATION = `
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
+
+/**
+ * Removes sign-ups that never confirmed the e-mail (they own no projects or
+ * applications yet). Dependent rows are deleted explicitly because the remote
+ * database does not enforce ON DELETE CASCADE.
+ * @param {string} condition SQL condition on table "user".
+ * @param {unknown[]} args
+ */
+async function deleteUnverifiedUsers(condition, args = []) {
+  const where = `id IN (SELECT id FROM user WHERE email_verified_at IS NULL AND (${condition}))`;
+  await db.transaction(async tx => {
+    await tx.run(`DELETE FROM email_code WHERE user_${where}`, args);
+    await tx.run(`DELETE FROM profile WHERE ${where}`, args);
+    await tx.run(`DELETE FROM user WHERE ${where}`, args);
+  });
+}
+
 app.post('/api/auth/register', handle(async (req, res) => {
   const name = String(req.body.name || '').trim();
   const email = String(req.body.email || '').trim().toLowerCase();
@@ -414,9 +459,15 @@ app.post('/api/auth/register', handle(async (req, res) => {
   if (nickCheck.error) return sendError(res, 400, nickCheck.error);
   const { nick } = nickCheck;
 
-  if (await db.get('SELECT 1 FROM user WHERE email = ?', [email])) {
+  // Sign-ups never confirmed within a day are dropped, so they cannot hold an
+  // e-mail or nick forever. An unconfirmed account with this same e-mail is
+  // replaced: whoever owns the inbox can always start over.
+  await deleteUnverifiedUsers("created_at < datetime('now', '-1 day')");
+  const existing = await db.get('SELECT id, email_verified_at FROM user WHERE email = ?', [email]);
+  if (existing && existing.email_verified_at) {
     return sendError(res, 409, 'Este e-mail já está cadastrado.');
   }
+  if (existing) await deleteUnverifiedUsers('id = ?', [existing.id]);
   if (await db.get('SELECT 1 FROM user WHERE nick = ?', [nick])) {
     return sendError(res, 409, 'Este nick já está em uso.');
   }
@@ -434,8 +485,14 @@ app.post('/api/auth/register', handle(async (req, res) => {
       );
       return result.lastInsertRowid;
     });
-    const user = await getUserWithProfile(userId);
-    return res.status(201).json({ token: signToken(user), user });
+    try {
+      await emailCodes.send({ id: userId, email, name }, 'verify');
+    } catch (error) {
+      console.error('Verification e-mail failed:', error.message);
+      await deleteUnverifiedUsers('id = ?', [userId]);
+      return sendError(res, 502, 'Não foi possível enviar o e-mail de confirmação. Confira o endereço e tente novamente.');
+    }
+    return res.status(201).json({ verificationRequired: true, email });
   } catch (error) {
     // Two requests racing for the same e-mail/nick: the unique indexes decide.
     if (/UNIQUE/i.test(String(error.message)) || error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -450,28 +507,136 @@ app.post('/api/auth/register', handle(async (req, res) => {
 }));
 
 app.post('/api/auth/login', handle(async (req, res) => {
-  const email = String(req.body.email || '').trim().toLowerCase();
+  // "login" accepts the e-mail or the @nick ("email" is still read for older app builds).
+  const identifier = String(req.body.login ?? req.body.email ?? '').trim().toLowerCase().slice(0, 200);
   const password = String(req.body.password || '');
+  const byEmail = identifier.includes('@') && !identifier.startsWith('@');
+  const nick = identifier.replace(/^@/, '');
 
-  // Per-account limit as well: stops password guessing even from many IP addresses.
-  const attempt = loginAccountLimiter.hit(email);
+  const user = byEmail || NICK_PATTERN.test(nick)
+    ? await db.get(
+        `SELECT u.id, u.email, u.password_hash, u.email_verified_at, p.name
+         FROM user u
+         JOIN profile p ON p.id = u.id
+         WHERE ${byEmail ? 'u.email' : 'u.nick'} = ?`,
+        [byEmail ? identifier : nick]
+      )
+    : null;
+
+  // Per-account limit as well: stops password guessing even from many IP
+  // addresses. Keyed by account, so the e-mail and the nick share one counter.
+  const attempt = loginAccountLimiter.hit(user ? `user:${user.id}` : `login:${identifier}`);
   if (attempt.limited) {
     res.setHeader('Retry-After', String(attempt.retryAfter));
     return sendError(res, 429, 'Muitas tentativas de login para esta conta. Aguarde alguns minutos.');
   }
 
-  const user = await db.get(
-    `SELECT u.id, u.email, u.password_hash, p.name
-     FROM user u
-     JOIN profile p ON p.id = u.id
-     WHERE u.email = ?`,
-    [email]
-  );
   const passwordMatches = await bcrypt.compare(password.slice(0, 200), user ? user.password_hash : DUMMY_HASH);
   if (!user || !passwordMatches) {
-    return sendError(res, 401, 'E-mail ou senha incorretos.');
+    return sendError(res, 401, 'Login ou senha incorretos.');
+  }
+  if (!user.email_verified_at) {
+    // The password is right, so it is safe to say where the code goes.
+    try {
+      await emailCodes.send(user, 'verify');
+    } catch (error) {
+      console.error('Verification e-mail failed:', error.message);
+    }
+    return res.status(403).json({
+      error: 'Confirme seu e-mail para entrar. Enviamos um código para ele.',
+      verificationRequired: true,
+      email: user.email,
+    });
   }
   return res.json({ token: signToken(user), user: await getUserWithProfile(user.id) });
+}));
+
+/**
+ * Account by e-mail or @nick (same rule as the login), or null.
+ * @param {unknown} login
+ */
+async function findAccount(login) {
+  const identifier = String(login || '').trim().toLowerCase().slice(0, 200);
+  const byEmail = identifier.includes('@') && !identifier.startsWith('@');
+  const nick = identifier.replace(/^@/, '');
+  if (!byEmail && !NICK_PATTERN.test(nick)) return null;
+  return db.get(
+    `SELECT u.id, u.email, u.email_verified_at, p.name
+     FROM user u
+     JOIN profile p ON p.id = u.id
+     WHERE ${byEmail ? 'u.email' : 'u.nick'} = ?`,
+    [byEmail ? identifier : nick]
+  );
+}
+
+/** Per-account limit for asking new codes, on top of the per-IP one. */
+function tooManyCodeRequests(res, account) {
+  const attempt = codeEmailLimiter.hit(`code:${account.id}`);
+  if (!attempt.limited) return false;
+  res.setHeader('Retry-After', String(attempt.retryAfter));
+  sendError(res, 429, 'Muitos códigos pedidos para esta conta. Aguarde e tente de novo.');
+  return true;
+}
+
+app.post('/api/auth/verify-email', handle(async (req, res) => {
+  const account = await findAccount(req.body.email);
+  const invalid = () => sendError(res, 400, 'Código inválido ou expirado. Confira o e-mail ou peça um novo código.');
+  if (!account) return invalid();
+  if (account.email_verified_at) return sendError(res, 409, 'Este e-mail já foi confirmado. Entre com sua senha.');
+  if (!(await emailCodes.consume(account.id, 'verify', req.body.code))) return invalid();
+
+  await db.run('UPDATE user SET email_verified_at = CURRENT_TIMESTAMP WHERE id = ?', [account.id]);
+  return res.json({ token: signToken(account), user: await getUserWithProfile(account.id) });
+}));
+
+app.post('/api/auth/resend-code', handle(async (req, res) => {
+  const account = await findAccount(req.body.email);
+  // Same answer whether or not the account exists (does not reveal e-mails).
+  if (!account || account.email_verified_at) return res.json({ ok: true, retryAfter: 60 });
+  if (tooManyCodeRequests(res, account)) return undefined;
+  try {
+    const result = await emailCodes.send(account, 'verify');
+    return res.json({ ok: true, retryAfter: result.retryAfter });
+  } catch (error) {
+    console.error('Verification e-mail failed:', error.message);
+    return sendError(res, 502, 'Não foi possível enviar o e-mail agora. Tente novamente em instantes.');
+  }
+}));
+
+app.post('/api/auth/forgot-password', handle(async (req, res) => {
+  const account = await findAccount(req.body.login);
+  // Always the same answer, so the form cannot be used to find accounts.
+  const answer = () => res.json({
+    ok: true,
+    message: 'Se existir uma conta com esses dados, enviamos um código para o e-mail dela.',
+  });
+  if (!account) return answer();
+  if (tooManyCodeRequests(res, account)) return undefined;
+  try {
+    await emailCodes.send(account, 'reset');
+  } catch (error) {
+    console.error('Password reset e-mail failed:', error.message);
+  }
+  return answer();
+}));
+
+app.post('/api/auth/reset-password', handle(async (req, res) => {
+  const password = String(req.body.password || '');
+  if (password.length < 6 || password.length > PROFILE_LIMITS.password) {
+    return sendError(res, 400, 'A nova senha precisa ter pelo menos 6 caracteres.');
+  }
+  const account = await findAccount(req.body.login);
+  if (!account || !(await emailCodes.consume(account.id, 'reset', req.body.code))) {
+    return sendError(res, 400, 'Código inválido ou expirado. Peça um novo código.');
+  }
+  const passwordHash = await bcrypt.hash(password, 10);
+  // Receiving the code also proves the e-mail belongs to this person.
+  await db.run(
+    'UPDATE user SET password_hash = ?, email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP) WHERE id = ?',
+    [passwordHash, account.id]
+  );
+  await db.run("DELETE FROM email_code WHERE user_id = ? AND purpose = 'verify'", [account.id]);
+  return res.json({ token: signToken(account), user: await getUserWithProfile(account.id) });
 }));
 
 app.get('/api/auth/me', authRequired, handle(async (req, res) => {
@@ -549,7 +714,8 @@ app.get('/api/users', handle(async (req, res) => {
     `SELECT u.nick, p.name, p.bio, p.avatar_url
      FROM user u
      JOIN profile p ON p.id = u.id
-     WHERE (? = '' OR u.nick LIKE ? ESCAPE '\\' OR p.name LIKE ? ESCAPE '\\')
+     WHERE u.email_verified_at IS NOT NULL
+       AND (? = '' OR u.nick LIKE ? ESCAPE '\\' OR p.name LIKE ? ESCAPE '\\')
      ORDER BY p.name COLLATE NOCASE, u.nick
      LIMIT ? OFFSET ?`,
     [query, pattern, pattern, limit + 1, offset]
@@ -599,15 +765,17 @@ app.get('/api/users/:nick', authOptional, handle(async (req, res) => {
                 p.linkedin_url, p.website_url, p.contact_email, p.phone
          FROM user u
          JOIN profile p ON p.id = u.id
-         WHERE u.nick = ?`,
+         WHERE u.nick = ? AND u.email_verified_at IS NOT NULL`,
         [nick]
       )
     : null;
   if (!row) return sendError(res, 404, 'Pessoa não encontrada.');
 
-  const projects = (await listProjects('WHERE p.user_id = ?', [row.id])).map(
-    ({ ownerAvatarUrl, ...project }) => project
-  );
+  // Same shape as GET /api/projects, so the profile can reuse the Explorar cards.
+  const projects = await listProjects('WHERE p.user_id = ?', [row.id], {
+    includeOwnerContact: Boolean(req.user),
+    viewerId: req.user ? req.user.id : null,
+  });
 
   // Contact details are only shown to signed-in people (limits scraping).
   const contactVisible = Boolean(req.user);
@@ -975,6 +1143,11 @@ if (require.main === module) {
       app.listen(port, () => {
         console.log(`Open Teamwork em http://localhost:${port} (banco: ${db.kind})`);
       });
+      // Keeps the Brevo API key from expiring (it is disabled after 90 days unused).
+      if (mailer.kind === 'brevo') {
+        mailer.keepKeyAlive();
+        setInterval(() => mailer.keepKeyAlive(), 24 * 60 * 60_000).unref();
+      }
     })
     .catch(error => {
       console.error('Falha ao preparar o banco de dados:', error);
@@ -982,4 +1155,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { app, db, ready };
+module.exports = { app, db, ready, mailer };

@@ -64,6 +64,8 @@ async function loadMyProjects() {
 
   newProjectButton.classList.remove('is-disabled');
   newProjectButton.title = '';
+  // Placeholder only on the first load; reloads keep the current cards on screen.
+  if (!projectsList.querySelector('[data-project-id]')) projectsList.innerHTML = renderSkeleton('project', 3);
   try {
     myProjects = (await apiRequest('/projects/mine')).projects;
   } catch (error) {
@@ -121,6 +123,7 @@ async function showApplications(projectId) {
   const project = myProjects.find(item => item.id === projectId);
   if (!card || !project) return;
   const slot = card.querySelector('.applications-slot');
+  if (!slot.innerHTML.trim()) slot.innerHTML = renderSkeleton('panel');
 
   let applications;
   try {
@@ -162,7 +165,7 @@ async function toggleApplications(projectId, button) {
 
 /** @param {number} projectId @param {HTMLButtonElement} button */
 async function updateApplicationStatus(projectId, button) {
-  button.disabled = true;
+  setButtonBusy(button, true);
   try {
     await apiRequest(`/projects/${projectId}/applications/${button.dataset.applicationId}`, {
       method: 'PATCH',
@@ -172,7 +175,7 @@ async function updateApplicationStatus(projectId, button) {
     await loadMyProjects();
   } catch (error) {
     alert(error.message);
-    button.disabled = false;
+    setButtonBusy(button, false);
   }
 }
 
@@ -391,7 +394,7 @@ async function saveProject() {
     tags: [...currentTags],
   };
 
-  saveProjectButton.disabled = true;
+  setButtonBusy(saveProjectButton, true);
   try {
     await apiRequest(editingProjectId ? `/projects/${editingProjectId}` : '/projects', {
       method: editingProjectId ? 'PUT' : 'POST',
@@ -402,7 +405,7 @@ async function saveProject() {
   } catch (error) {
     alert(error.message);
   } finally {
-    saveProjectButton.disabled = false;
+    setButtonBusy(saveProjectButton, false);
   }
 }
 
