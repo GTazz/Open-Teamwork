@@ -1,5 +1,10 @@
 # Versão app mobile
 
+**APK pronto para Android:** <https://github.com/GTazz/Open-Teamwork/releases/download/android-latest/open-teamwork.apk>
+
+Ele é gerado sozinho pelo GitHub Actions (`.github/workflows/android.yml`) a cada push no `main`
+que mude o site. Para gerar na hora: aba **Actions → Android APK → Run workflow**.
+
 O projeto já está preparado de duas formas. Comece pela primeira (grátis e imediata).
 
 ## Opção 1 — App instalável (PWA): grátis, sem loja
