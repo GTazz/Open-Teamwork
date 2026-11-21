@@ -6,7 +6,7 @@ A plataforma permite criar projetos, encontrar colaboradores, visualizar oportun
 
 ## 🚀 Deploy
 
-[![Site](https://img.shields.io/badge/Site-Open%20Teamwork-success?style=for-the-badge)](https://open-teamwork.onrender.com)
+[![Site](https://img.shields.io/badge/Site-Open%20Teamwork-success?style=for-the-badge)](https://otw.gtazz.dev)
 [![Android](https://img.shields.io/badge/Android-Baixar%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/GTazz/Open-Teamwork/releases/download/android-latest/open-teamwork.apk)
 [![Protótipo](https://img.shields.io/badge/Protótipo-primeira%20versão-lightgrey?style=for-the-badge)](https://gtazz.github.io/Open-Teamwork-Prototype/)
 

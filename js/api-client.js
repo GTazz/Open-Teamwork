@@ -4,7 +4,7 @@
 // - mobile app:  the page is served from inside the app (capacitor://localhost
 //                or https://localhost), so the API is reached at its public address.
 // ========================================
-const PRODUCTION_API_URL = 'https://open-teamwork.onrender.com';
+const PRODUCTION_API_URL = 'https://otw.gtazz.dev';
 const IS_NATIVE_APP =
   window.location.protocol === 'capacitor:' ||
   (window.location.hostname === 'localhost' && window.location.protocol === 'https:') ||
