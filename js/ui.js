@@ -65,14 +65,12 @@ function looksLikeEmail(value) {
 
 /** Path to another page, from index.html or from /pages/. */
 function pageUrl(page) {
+  // Website: every page lives at its own name ("/perfil", "/" for Explorar).
+  if (!IS_NATIVE_APP) return page === 'index' ? '/' : `/${page}`;
+  // App bundle (no server): real files, index.html at the root and the rest in pages/.
   const inPages = window.location.pathname.includes('/pages/');
-  // The website uses clean addresses; the app bundle has no server, so it keeps ".html".
-  const ext = IS_NATIVE_APP ? '.html' : '';
-  if (page === 'index') {
-    const home = IS_NATIVE_APP ? 'index.html' : '';
-    return inPages ? `../${home}` : `./${home}`;
-  }
-  return inPages ? `./${page}${ext}` : `./pages/${page}${ext}`;
+  if (page === 'index') return inPages ? '../index.html' : './index.html';
+  return inPages ? `./${page}.html` : `./pages/${page}.html`;
 }
 
 /** @param {string} nick */

@@ -2587,3 +2587,33 @@ body.auth-mode .auth-panel {
     color: var(--fg-muted);
     padding: 12px 0;
 }
+
+/* ---------- Página não encontrada (404.html) ---------- */
+.not-found {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding-top: 12vh;
+}
+
+.not-found-code {
+    margin: 0;
+    font-size: clamp(72px, 22vw, 140px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--success-emphasis);
+}
+
+.not-found h1 {
+    margin: 12px 0 8px;
+}
+
+.not-found-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 24px;
+}

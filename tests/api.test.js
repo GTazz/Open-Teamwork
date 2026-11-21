@@ -410,12 +410,12 @@ test('segurança: só arquivos do site são públicos, com cabeçalhos de prote�
   assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(health.headers.get('x-powered-by'), null);
 
-  for (const [old, clean] of [['/index.html', '/'], ['/pages/membros.html?q=1', '/pages/membros?q=1']]) {
+  for (const [old, clean] of [['/index.html', '/'], ['/pages/membros.html?q=1', '/membros?q=1'], ['/pages/admin', '/admin'], ['/perfil.html', '/perfil']]) {
     const redirect = await api(old, { raw: true });
     assert.equal(redirect.status, 301, old);
     assert.equal(redirect.headers.get('location'), clean);
   }
-  for (const allowed of ['/', '/assets/styles.css', '/pages/membros', '/pages/admin', '/js/api-client.js']) {
+  for (const allowed of ['/', '/assets/styles.css', '/membros', '/admin', '/perfil', '/js/api-client.js']) {
     assert.equal((await api(allowed, { raw: true })).status, 200, allowed);
   }
   for (const blocked of [
@@ -428,6 +428,16 @@ test('segurança: só arquivos do site são públicos, com cabeçalhos de prote�
     assert.ok(status >= 400, `${blocked} não pode ser público (recebeu ${status})`);
   }
   assert.equal((await api('/api/rota-que-nao-existe')).status, 404);
+
+  // Unknown pages: the 404 screen for browsers, an empty 404 for everything else.
+  for (const missing of ['/pagina-que-nao-existe', '/pages/nada', '/um/dois', '/404.html']) {
+    const page = await fetch(base + missing, { headers: { Accept: 'text/html' }, redirect: 'manual' });
+    assert.equal(page.status, 404, missing);
+    assert.match(await page.text(), /Página não encontrada/, missing);
+  }
+  const asset = await fetch(`${base}/assets/nao-existe.png`, { headers: { Accept: 'image/png' } });
+  assert.equal(asset.status, 404);
+  assert.equal(await asset.text(), '');
 });
 
 test('segurança: JSON inválido e limite de tentativas de login', async () => {

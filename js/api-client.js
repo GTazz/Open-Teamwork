@@ -18,7 +18,7 @@ const API_BASE_URL = `${API_ORIGIN}/api`;
 
 /**
  * Website only: links in the HTML point to "page.html" (needed by the app,
- * which has no server). Clicks go straight to the clean address ("/pages/perfil",
+ * which has no server). Clicks go straight to the clean address ("/perfil",
  * "/") instead of taking the server's redirect.
  */
 if (!IS_NATIVE_APP && window.location.protocol !== 'file:') {
@@ -28,7 +28,9 @@ if (!IS_NATIVE_APP && window.location.protocol !== 'file:') {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const url = new URL(link.href, window.location.href);
     if (url.origin !== window.location.origin || !url.pathname.endsWith('.html')) return;
-    url.pathname = url.pathname.endsWith('/index.html') ? url.pathname.slice(0, -'index.html'.length) : url.pathname.slice(0, -5);
+    // "/index.html" -> "/", "/pages/perfil.html" (or "/perfil.html") -> "/perfil".
+    const name = url.pathname.split('/').pop().slice(0, -5);
+    url.pathname = name === 'index' ? '/' : `/${name}`;
     event.preventDefault();
     window.location.href = url.toString();
   });

@@ -9,7 +9,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const { createDb } = require('./lib/db');
 const { NICK_PATTERN, checkNick } = require('./lib/nick');
-const { securityHeaders, createRateLimiter, mountStaticFiles } = require('./lib/security');
+const { securityHeaders, createRateLimiter, mountStaticFiles, mountNotFoundPage } = require('./lib/security');
 const { createMailer } = require('./lib/mailer');
 const { createEmailCodes } = require('./lib/email-codes');
 
@@ -1224,6 +1224,7 @@ app.patch('/api/projects/:projectId/applications/:applicationId', authRequired, 
 // Fallbacks
 // ---------------------------------------------------------------------------
 app.use('/api', (_req, res) => sendError(res, 404, 'Não encontrado.'));
+mountNotFoundPage(app, rootDir);
 
 app.use((error, _req, res, _next) => {
   if (error.type === 'entity.too.large') return sendError(res, 413, 'Requisição grande demais.');
