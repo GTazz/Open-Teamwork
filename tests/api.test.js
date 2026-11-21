@@ -13,6 +13,8 @@ const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'otw-test-'));
 process.env.JWT_SECRET = 'segredo-de-teste-com-mais-de-32-caracteres';
 process.env.NODE_ENV = 'test';
 process.env.RATE_LIMIT_SCALE = '20';
+process.env.ADMIN_USER = 'admin';
+process.env.ADMIN_PASSWORD_HASH = require('bcryptjs').hashSync('senha-admin', 4);
 if (!process.env.TURSO_DATABASE_URL) {
   process.env.DATABASE_FILE = path.join(tempDir, 'test.sqlite');
 }
@@ -229,7 +231,7 @@ test('avatar: servido como imagem em cache e referenciado por endereço curto', 
   await api('/api/auth/me', { method: 'PUT', token: bob.token, body: { name: 'Bob Lima', avatarUrl: '' } });
 });
 
-test('pessoas: lista, busca, paginação e escape de curingas', async () => {
+test('membros: lista, busca, paginação e escape de curingas', async () => {
   const all = (await api('/api/users')).body;
   assert.deepEqual(all.users.map(u => u.nick).sort(), ['alice_dev', 'bob_lima']);
   assert.equal(all.hasMore, false);
@@ -408,7 +410,12 @@ test('segurança: só arquivos do site são públicos, com cabeçalhos de prote�
   assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(health.headers.get('x-powered-by'), null);
 
-  for (const allowed of ['/', '/index.html', '/assets/styles.css', '/pages/pessoas.html', '/js/api-client.js']) {
+  for (const [old, clean] of [['/index.html', '/'], ['/pages/membros.html?q=1', '/pages/membros?q=1']]) {
+    const redirect = await api(old, { raw: true });
+    assert.equal(redirect.status, 301, old);
+    assert.equal(redirect.headers.get('location'), clean);
+  }
+  for (const allowed of ['/', '/assets/styles.css', '/pages/membros', '/pages/admin', '/js/api-client.js']) {
     assert.equal((await api(allowed, { raw: true })).status, 200, allowed);
   }
   for (const blocked of [
@@ -548,4 +555,51 @@ test('senha: recuperação por código no e-mail', async () => {
   assert.equal((await api('/api/auth/login', { method: 'POST', body: { login: 'bob_lima', password: 'novaSenha1' } })).status, 200);
   const reused = await api('/api/auth/reset-password', { method: 'POST', body: { login: 'bob_lima', code, password: 'outraSenha2' } });
   assert.equal(reused.status, 400, 'o código só vale uma vez');
+});
+
+// ---------------------------------------------------------------------------
+test('admin: login separado e exclusão em cascata de perfis e projetos', async () => {
+  const wrong = await api('/api/admin/login', { method: 'POST', body: { user: 'admin', password: 'errada' } });
+  assert.equal(wrong.status, 401);
+  const login = await api('/api/admin/login', { method: 'POST', body: { user: 'Admin', password: 'senha-admin' } });
+  assert.equal(login.status, 200);
+  const admin = login.body.token;
+
+  const owner = await register('Dona Admin', 'dona_admin');
+  const helper = await register('Ajudante Admin', 'ajudante_admin');
+  // A normal session never opens the admin API, and the admin token is not a normal session.
+  assert.equal((await api('/api/admin/users', { token: owner.token })).status, 401);
+  assert.equal((await api('/api/auth/me', { token: admin })).status, 401);
+
+  const created = await api('/api/projects', { method: 'POST', token: owner.token, body: goodProject });
+  const project = created.body.project;
+  const helperProject = (await api('/api/projects', { method: 'POST', token: helper.token, body: goodProject })).body.project;
+  const dev = project.qualifications.find(q => q.name === 'Dev');
+  await api(`/api/projects/${project.id}/applications`, { method: 'POST', token: helper.token, body: { qualificationIds: [dev.id] } });
+  const helperDev = helperProject.qualifications.find(q => q.name === 'Dev');
+  await api(`/api/projects/${helperProject.id}/applications`, { method: 'POST', token: owner.token, body: { qualificationIds: [helperDev.id] } });
+  const [received] = (await api(`/api/projects/${helperProject.id}/applications`, { token: helper.token })).body.applications;
+  await api(`/api/projects/${helperProject.id}/applications/${received.id}`, { method: 'PATCH', token: helper.token, body: { status: 'accepted' } });
+  const filledBefore = await db.get('SELECT filled_slots AS f FROM project_qualification WHERE project_id = ? AND id = ?', [helperProject.id, helperDev.id]);
+  assert.equal(filledBefore.f, 1);
+
+  const users = (await api('/api/admin/users', { token: admin })).body.users;
+  const ownerRow = users.find(u => u.nick === 'dona_admin');
+  assert.equal(ownerRow.projects, 1);
+  assert.equal(ownerRow.applications, 1);
+
+  // Deleting the owner removes her project (with the helper's application to it),
+  // her accepted application elsewhere (vacancy freed) and the account itself.
+  assert.equal((await api(`/api/admin/users/${ownerRow.id}`, { method: 'DELETE', token: admin })).status, 204);
+  assert.equal((await db.get('SELECT COUNT(*) AS n FROM project WHERE id = ?', [project.id])).n, 0);
+  assert.equal((await db.get('SELECT COUNT(*) AS n FROM application WHERE project_id = ? OR user_id = ?', [project.id, ownerRow.id])).n, 0);
+  assert.equal((await db.get('SELECT COUNT(*) AS n FROM user WHERE id = ?', [ownerRow.id])).n, 0);
+  assert.equal((await db.get('SELECT COUNT(*) AS n FROM profile WHERE id = ?', [ownerRow.id])).n, 0);
+  const filledAfter = await db.get('SELECT filled_slots AS f FROM project_qualification WHERE project_id = ? AND id = ?', [helperProject.id, helperDev.id]);
+  assert.equal(filledAfter.f, 0, 'vaga aprovada volta a ficar livre');
+  assert.equal((await api('/api/auth/me', { token: owner.token })).status, 401);
+
+  assert.equal((await api(`/api/admin/projects/${helperProject.id}`, { method: 'DELETE', token: admin })).status, 204);
+  assert.equal((await db.get('SELECT COUNT(*) AS n FROM project_qualification WHERE project_id = ?', [helperProject.id])).n, 0);
+  assert.equal((await api(`/api/admin/projects/${helperProject.id}`, { method: 'DELETE', token: admin })).status, 404);
 });

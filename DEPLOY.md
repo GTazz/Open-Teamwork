@@ -57,7 +57,7 @@ Não precisa criar tabelas: o servidor cria tudo sozinho no primeiro início.
 ## 4. Testar
 
 - `https://SEU-SERVICO.onrender.com/api/health` deve responder `{"status":"ok"}`.
-- Crie uma conta na aba **Perfil**, publique um projeto e confira na aba **Pessoas**.
+- Crie uma conta na aba **Perfil**, publique um projeto e confira na aba **Membros**.
 - Nos logs do Render deve aparecer `banco: turso`. Se aparecer o aviso de SQLite local, as
   variáveis do Turso não foram lidas.
 

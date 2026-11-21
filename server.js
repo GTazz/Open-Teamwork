@@ -106,6 +106,8 @@ app.use('/api', apiLimiter.middleware());
 app.use('/api/auth/register', registerLimiter.middleware('Muitos cadastros deste endereço. Tente mais tarde.'));
 app.use('/api/auth/login', loginIpLimiter.middleware('Muitas tentativas de login. Aguarde alguns minutos.'));
 app.use('/api/nicks', nickLimiter.middleware());
+const adminLoginLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 10 * scale });
+app.use('/api/admin/login', adminLoginLimiter.middleware('Muitas tentativas. Aguarde alguns minutos.'));
 // Codes: typing (verify/reset) and asking for new ones (resend/forgot).
 const codeIpLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 30 * scale });
 const codeEmailLimiter = createRateLimiter({ windowMs: 60 * 60_000, max: 10 * scale });
@@ -913,6 +915,103 @@ app.delete('/api/projects/:id', authRequired, handle(async (req, res) => {
     await tx.run('DELETE FROM application WHERE project_id = ?', [projectId]);
     await tx.run('DELETE FROM project_qualification WHERE project_id = ?', [projectId]);
     await tx.run('DELETE FROM project WHERE id = ?', [projectId]);
+  });
+  return res.status(204).end();
+}));
+
+// ---------------------------------------------------------------------------
+// Admin (pages/admin.html): only lists and deletes people and projects.
+// Enabled when ADMIN_PASSWORD_HASH (bcrypt) is set; the user name comes from
+// ADMIN_USER (default "admin"). Admin tokens carry aud "admin" and no "sub",
+// so they never work as a normal session and normal sessions never work here.
+// ---------------------------------------------------------------------------
+
+const ADMIN_USER = String(process.env.ADMIN_USER || 'admin').trim().toLowerCase();
+const ADMIN_PASSWORD_HASH = String(process.env.ADMIN_PASSWORD_HASH || '').trim();
+
+const adminRequired = (req, res, next) => {
+  const [scheme, token] = (req.get('authorization') || '').split(' ');
+  try {
+    if (scheme !== 'Bearer' || !token) throw new Error('missing');
+    const payload = jwt.verify(token, jwtSecret, { audience: 'admin' });
+    if (payload.role !== 'admin') throw new Error('role');
+    return next();
+  } catch {
+    return sendError(res, 401, 'Sessão de administrador inválida. Entre novamente.');
+  }
+};
+
+app.post('/api/admin/login', handle(async (req, res) => {
+  if (!ADMIN_PASSWORD_HASH) return sendError(res, 503, 'Painel de administrador desativado neste servidor.');
+  const user = String(req.body.user || '').trim().toLowerCase();
+  const password = String(req.body.password || '');
+  // Always runs bcrypt, so a wrong user name answers as slowly as a wrong password.
+  const passwordOk = await bcrypt.compare(password, ADMIN_PASSWORD_HASH);
+  if (user !== ADMIN_USER || !passwordOk) return sendError(res, 401, 'Usuário ou senha incorretos.');
+  const token = jwt.sign({ role: 'admin' }, jwtSecret, { audience: 'admin', expiresIn: '2h' });
+  return res.json({ token });
+}));
+
+app.get('/api/admin/users', adminRequired, handle(async (_req, res) => {
+  const users = await db.all(
+    `SELECT u.id, u.nick, u.email, p.name, u.created_at AS createdAt,
+            (SELECT COUNT(*) FROM project x WHERE x.user_id = u.id) AS projects,
+            (SELECT COUNT(*) FROM application a WHERE a.user_id = u.id) AS applications
+     FROM user u
+     JOIN profile p ON p.id = u.id
+     ORDER BY u.id DESC`
+  );
+  return res.json({ users });
+}));
+
+app.get('/api/admin/projects', adminRequired, handle(async (_req, res) => {
+  const projects = await db.all(
+    `SELECT x.id, x.name, x.created_at AS createdAt, u.nick AS ownerNick, p.name AS owner,
+            (SELECT COUNT(*) FROM application a WHERE a.project_id = x.id) AS applications
+     FROM project x
+     JOIN user u ON u.id = x.user_id
+     JOIN profile p ON p.id = u.id
+     ORDER BY x.id DESC`
+  );
+  return res.json({ projects });
+}));
+
+/** Deletes a project with its vacancies and every application to it. */
+async function deleteProjectCascade(tx, projectId) {
+  await tx.run('DELETE FROM application WHERE project_id = ?', [projectId]);
+  await tx.run('DELETE FROM project_qualification WHERE project_id = ?', [projectId]);
+  await tx.run('DELETE FROM project WHERE id = ?', [projectId]);
+}
+
+app.delete('/api/admin/projects/:id', adminRequired, handle(async (req, res) => {
+  const projectId = Number(req.params.id);
+  const project = await db.get('SELECT id FROM project WHERE id = ?', [projectId]);
+  if (!project) return sendError(res, 404, 'Projeto não encontrado.');
+  await db.transaction(tx => deleteProjectCascade(tx, projectId));
+  return res.status(204).end();
+}));
+
+/**
+ * Deletes a person and everything tied to them: their projects (with the
+ * applications they received), their own applications to other projects
+ * (accepted ones give the vacancy back), verification codes and profile.
+ */
+app.delete('/api/admin/users/:id', adminRequired, handle(async (req, res) => {
+  const userId = Number(req.params.id);
+  const user = await db.get('SELECT id FROM user WHERE id = ?', [userId]);
+  if (!user) return sendError(res, 404, 'Pessoa não encontrada.');
+
+  await db.transaction(async tx => {
+    const ownProjects = await tx.all('SELECT id FROM project WHERE user_id = ?', [userId]);
+    for (const { id } of ownProjects) await deleteProjectCascade(tx, id);
+
+    const appliedTo = await tx.all('SELECT DISTINCT project_id FROM application WHERE user_id = ?', [userId]);
+    await tx.run('DELETE FROM application WHERE user_id = ?', [userId]);
+    for (const { project_id: projectId } of appliedTo) await recalculateFilledSlots(tx, projectId);
+
+    await tx.run('DELETE FROM email_code WHERE user_id = ?', [userId]);
+    await tx.run('DELETE FROM profile WHERE id = ?', [userId]);
+    await tx.run('DELETE FROM user WHERE id = ?', [userId]);
   });
   return res.status(204).end();
 }));

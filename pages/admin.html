@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Admin · Open Teamwork</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/png" href="../assets/OTW Logo.png" />
+    <script src="../js/theme.js"></script>
+    <link rel="stylesheet" href="../assets/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="../index.html">
+          <img src="../assets/OTW Logo.png" alt="" class="brand-logo" width="32" height="32" />
+          <span>Open Teamwork</span>
+        </a>
+      </div>
+    </header>
+
+    <main id="main" class="container page admin-page">
+      <div class="page-header">
+        <h1>Administração</h1>
+        <button type="button" id="admin-logout" class="btn btn-outline btn-small hidden">Sair</button>
+      </div>
+
+      <section id="admin-login" class="card admin-card">
+        <form id="admin-login-form" autocomplete="off">
+          <div class="form-group">
+            <label for="admin-user">Usuário</label>
+            <input id="admin-user" class="input" type="text" autocapitalize="off" spellcheck="false" required />
+          </div>
+          <div class="form-group">
+            <label for="admin-password">Senha</label>
+            <input id="admin-password" class="input" type="password" required />
+          </div>
+          <p id="admin-login-message" class="form-message hidden" aria-live="polite"></p>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-large">Entrar</button>
+          </div>
+        </form>
+      </section>
+
+      <div id="admin-panel" class="hidden">
+        <div class="segmented" role="tablist" aria-label="Dados">
+          <button type="button" class="segmented-item active" role="tab" data-admin-tab="users" aria-selected="true">Perfis</button>
+          <button type="button" class="segmented-item" role="tab" data-admin-tab="projects" aria-selected="false">Projetos</button>
+        </div>
+        <div class="admin-search">
+          <label class="visually-hidden" for="admin-search">Filtrar</label>
+          <input type="search" id="admin-search" class="input" placeholder="Filtrar por nome, @nick ou e-mail" autocomplete="off" />
+        </div>
+        <p id="admin-counter" class="result-counter" aria-live="polite"></p>
+        <ul id="admin-list" class="admin-list"></ul>
+      </div>
+    </main>
+
+    <script src="../js/api-client.js"></script>
+    <script src="../js/admin.js"></script>
+  </body>
+</html>

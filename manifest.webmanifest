@@ -3,7 +3,7 @@
   "short_name": "Open Teamwork",
   "description": "Conecte pessoas a projetos colaborativos de acordo com suas habilidades.",
   "lang": "pt-BR",
-  "start_url": "/index.html",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

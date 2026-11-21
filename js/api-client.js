@@ -15,10 +15,48 @@ const API_ORIGIN = IS_NATIVE_APP
     ? 'http://localhost:3000'
     : '';
 const API_BASE_URL = `${API_ORIGIN}/api`;
+
+/**
+ * Website only: links in the HTML point to "page.html" (needed by the app,
+ * which has no server). Clicks go straight to the clean address ("/pages/perfil",
+ * "/") instead of taking the server's redirect.
+ */
+if (!IS_NATIVE_APP && window.location.protocol !== 'file:') {
+  document.addEventListener('click', event => {
+    const link = event.target.closest && event.target.closest('a[href]');
+    if (!link || link.target === '_blank' || event.defaultPrevented) return;
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const url = new URL(link.href, window.location.href);
+    if (url.origin !== window.location.origin || !url.pathname.endsWith('.html')) return;
+    url.pathname = url.pathname.endsWith('/index.html') ? url.pathname.slice(0, -'index.html'.length) : url.pathname.slice(0, -5);
+    event.preventDefault();
+    window.location.href = url.toString();
+  });
+}
 const API_TOKEN_KEY = 'openTeamworkApiToken';
 
+/** Expiry (Unix seconds) written inside the session token, or 0 when unreadable. */
+function readTokenExpiry(token) {
+  try {
+    const json = atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'));
+    return Number(JSON.parse(json).exp) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Saved session token. An expired one is dropped here: the server would ignore
+ * it, so keeping it would make the screen look signed in (no e-mails on cards,
+ * "Candidatar-se" failing) while the API treats the person as a visitor.
+ */
 function getApiToken() {
-  return localStorage.getItem(API_TOKEN_KEY) || '';
+  const token = localStorage.getItem(API_TOKEN_KEY) || '';
+  if (token && readTokenExpiry(token) * 1000 <= Date.now()) {
+    localStorage.removeItem(API_TOKEN_KEY);
+    return '';
+  }
+  return token;
 }
 
 function setApiToken(token) {
@@ -71,6 +109,9 @@ async function apiRequest(path, options = {}) {
   if (response.status === 204) return null;
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
+    // The server refused the saved session (expired, or signed with an old key):
+    // forget it so the screen stops pretending the person is signed in.
+    if (response.status === 401 && token) clearApiToken();
     const error = new Error(body.error || 'Não foi possível concluir a operação.');
     error.status = response.status;
     error.body = body; // extra fields, e.g. { verificationRequired, email }

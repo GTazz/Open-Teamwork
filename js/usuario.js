@@ -111,7 +111,7 @@ function renderUserProfile(user) {
 (async function loadUserProfile() {
   const nick = getRequestedNick();
   if (!nick) {
-    showUserState('Nenhuma pessoa selecionada. Escolha alguém na lista de colaboradores.', true);
+    showUserState('Nenhuma pessoa selecionada. Escolha alguém na lista de membros.', true);
     return;
   }
   userView.innerHTML = `<div class="skeleton-user">${renderSkeleton('profile')}<div class="repo-grid">${renderSkeleton('repo', 2)}</div></div>`;

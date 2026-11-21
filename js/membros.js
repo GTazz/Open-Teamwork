@@ -1,5 +1,5 @@
 // ========================================
-// PEOPLE DIRECTORY
+// MEMBERS DIRECTORY (pages/membros.html)
 // ========================================
 
 const PEOPLE_PAGE_SIZE = 18;
@@ -44,7 +44,7 @@ async function loadPeople(reset) {
     peopleOffset = 0;
     peopleGrid.innerHTML = renderSkeleton('person', 6);
     peopleMoreButton.classList.add('hidden');
-    peopleCounter.textContent = 'Carregando colaboradores...';
+    peopleCounter.textContent = 'Carregando membros...';
   }
   if (!reset) setButtonBusy(peopleMoreButton, true);
 
@@ -61,10 +61,10 @@ async function loadPeople(reset) {
 
     if (peopleOffset === 0) {
       peopleCounter.textContent = peopleQuery
-        ? `Nenhum colaborador encontrado para "${peopleQuery}".`
-        : 'Ainda não há colaboradores cadastrados.';
+        ? `Nenhum membro encontrado para "${peopleQuery}".`
+        : 'Ainda não há membros cadastrados.';
     } else {
-      peopleCounter.textContent = `Exibindo ${peopleOffset} ${peopleOffset === 1 ? 'colaborador' : 'colaboradores'}${hasMore ? ' (há mais)' : ''}`;
+      peopleCounter.textContent = `Exibindo ${peopleOffset} ${peopleOffset === 1 ? 'membro' : 'membros'}${hasMore ? ' (há mais)' : ''}`;
     }
     peopleMoreButton.classList.toggle('hidden', !hasMore);
     setButtonBusy(peopleMoreButton, false);

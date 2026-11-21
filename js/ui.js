@@ -66,8 +66,13 @@ function looksLikeEmail(value) {
 /** Path to another page, from index.html or from /pages/. */
 function pageUrl(page) {
   const inPages = window.location.pathname.includes('/pages/');
-  if (page === 'index') return inPages ? '../index.html' : './index.html';
-  return inPages ? `./${page}.html` : `./pages/${page}.html`;
+  // The website uses clean addresses; the app bundle has no server, so it keeps ".html".
+  const ext = IS_NATIVE_APP ? '.html' : '';
+  if (page === 'index') {
+    const home = IS_NATIVE_APP ? 'index.html' : '';
+    return inPages ? `../${home}` : `./${home}`;
+  }
+  return inPages ? `./${page}${ext}` : `./pages/${page}${ext}`;
 }
 
 /** @param {string} nick */

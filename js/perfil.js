@@ -254,7 +254,7 @@ function showProfileView(user) {
   $('[data-profile-email-display]').textContent = user.email || '';
   const publicLink = $('[data-profile-public-link]');
   publicLink.textContent = user.nick ? `@${user.nick}` : '';
-  publicLink.href = user.nick ? `./usuario.html?nick=${encodeURIComponent(user.nick)}` : './pessoas.html';
+  publicLink.href = user.nick ? `./usuario.html?nick=${encodeURIComponent(user.nick)}` : './membros.html';
 
   fields.name.value = profile.name || user.name || '';
   fields.bio.value = profile.bio || '';
