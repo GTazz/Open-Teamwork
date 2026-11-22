@@ -1,6 +1,6 @@
 // Service worker: lets the site be installed as an app and keeps the pages
 // available when the connection drops. API calls are NEVER cached.
-const CACHE = 'otw-shell-v3';
+const CACHE = 'otw-shell-v4';
 
 self.addEventListener('install', event => {
   self.skipWaiting();

@@ -5,6 +5,18 @@
 Ele é gerado sozinho pelo GitHub Actions (`.github/workflows/android.yml`) a cada push no `main`
 que mude o site. Para gerar na hora: aba **Actions → Android APK → Run workflow**.
 
+**Atualizações do app** (`js/app-update.js`, injetado pelo `npm run mobile:prepare`):
+
+- **Páginas (automático):** todo push que muda o site publica as páginas do app no release
+  `android-web` (`web-<build>.zip` + `version.json`). O app baixa em segundo plano
+  (plugin `@capgo/capacitor-updater`, sem serviço da Capgo e sem estatísticas) e usa a versão nova
+  a partir da próxima abertura. Sem internet, abre com a última versão baixada.
+- **APK (obrigatório):** só é gerado de novo quando muda algo nativo desde o último APK
+  (`mobile/`, `capacitor.config.json`, `package.json`, `package-lock.json`, o workflow) ou à mão
+  em **Run workflow → Gerar um APK novo**. Apps com APK mais antigo ficam bloqueados por uma tela
+  cheia; o botão baixa o APK dentro do app (`mobile/apk-installer`) e abre o instalador do Android.
+- O servidor informa as versões em `/api/app/android` (consulta o GitHub a cada 5 minutos).
+
 O projeto já está preparado de duas formas. Comece pela primeira (grátis e imediata).
 
 ## Opção 1 — App instalável (PWA): grátis, sem loja

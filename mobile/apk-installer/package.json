@@ -1,0 +1,12 @@
+{
+  "name": "otw-apk-installer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor plugin (Android only) of Open Teamwork: downloads a new APK and opens Android's installer.",
+  "license": "MIT",
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  }
+}

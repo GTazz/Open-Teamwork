@@ -12,6 +12,7 @@ const { NICK_PATTERN, checkNick } = require('./lib/nick');
 const { securityHeaders, createRateLimiter, mountStaticFiles, mountNotFoundPage } = require('./lib/security');
 const { createMailer } = require('./lib/mailer');
 const { createEmailCodes } = require('./lib/email-codes');
+const { createAndroidRelease } = require('./lib/android-release');
 
 const rootDir = __dirname;
 const isProduction = process.env.NODE_ENV === 'production';
@@ -82,6 +83,15 @@ app.use(express.json({ limit: '1mb' }));
 
 // Used by the host's health check and by keep-alive pings: does not touch the database.
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
+// Android app: latest APK and latest pages bundle (live update), see
+// lib/android-release.js and js/app-update.js. Does not touch the database, so
+// it sits before the "wait for the schema" step.
+const androidRelease = createAndroidRelease({ repo: process.env.ANDROID_RELEASE_REPO || undefined });
+app.get('/api/app/android', async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(await androidRelease.latest());
+});
 
 // Requests wait until the schema is ready (only relevant right after start-up).
 app.use('/api', async (_req, res, next) => {

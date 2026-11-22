@@ -5,5 +5,15 @@
   "server": {
     "androidScheme": "https"
   },
-  "backgroundColor": "#0d1117"
+  "backgroundColor": "#0d1117",
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "statsUrl": "",
+      "resetWhenUpdate": true,
+      "autoDeleteFailed": true,
+      "autoDeletePrevious": true,
+      "appReadyTimeout": 10000
+    }
+  }
 }

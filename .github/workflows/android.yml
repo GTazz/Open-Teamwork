@@ -1,4 +1,9 @@
-# Builds the Android app (Capacitor) and publishes it as a GitHub release.
+# Android app (Capacitor). Every run publishes the app's pages as a live update
+# (release "android-web": web-<build>.zip + version.json); installed apps download
+# it in the background and use it from the next start (js/app-update.js).
+# A new APK (release "android-latest") is built only when native parts changed
+# since the last APK (icon, plugins, permissions, Capacitor config...) or when
+# asked by hand; apps with an older APK are then blocked until they update.
 # Download: https://github.com/GTazz/Open-Teamwork/releases/download/android-latest/open-teamwork.apk
 name: Android APK
 
@@ -18,49 +23,93 @@ on:
       - 'scripts/prepare-mobile.js'
       - '.github/workflows/android.yml'
   workflow_dispatch:
+    inputs:
+      build_apk:
+        description: 'Gerar um APK novo mesmo sem mudanças nativas (os apps instalados serão obrigados a atualizar)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 concurrency:
   group: android-apk
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # needs the "android-latest" tag to compare with the last APK
+
+      # Native parts: anything that is inside the APK and cannot change by live update.
+      - name: Does the APK need to be rebuilt?
+        id: plan
+        run: |
+          APK_COMMIT=$(git rev-list -n 1 android-latest 2>/dev/null || true)
+          APK_BUILD=$(gh release view android-latest --json name -q .name 2>/dev/null | sed -nE 's/.*\([0-9]+\.[0-9]+\.([0-9]+)\).*/\1/p' || true)
+          NATIVE_PATHS="mobile capacitor.config.json package.json package-lock.json .github/workflows/android.yml"
+          if [ "${{ inputs.build_apk }}" = "true" ] || [ -z "$APK_COMMIT" ] || [ -z "$APK_BUILD" ] \
+             || ! git diff --quiet "$APK_COMMIT" HEAD -- $NATIVE_PATHS; then
+            echo "apk=true" >> "$GITHUB_OUTPUT"
+            echo "native_build=$BUILD" >> "$GITHUB_OUTPUT"
+            echo "New APK: build $BUILD"
+          else
+            echo "apk=false" >> "$GITHUB_OUTPUT"
+            echo "native_build=$APK_BUILD" >> "$GITHUB_OUTPUT"
+            echo "Pages only (current APK: build $APK_BUILD)"
+          fi
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # APP_BUILD = number of these pages (and versionCode, when an APK is built).
+      - name: Prepare web files
+        env:
+          APP_BUILD: ${{ github.run_number }}
+        run: npm run mobile:prepare
+
+      - name: Pages bundle (live update)
+        run: |
+          (cd www && zip -qr "../web-$BUILD.zip" .)
+          CHECKSUM=$(sha256sum "web-$BUILD.zip" | cut -d' ' -f1)
+          printf '{"webBuild":%s,"minNativeBuild":%s,"checksum":"%s","file":"web-%s.zip"}\n' \
+            "$BUILD" "${{ steps.plan.outputs.native_build }}" "$CHECKSUM" "$BUILD" > version.json
+          cat version.json
+
+      # ---------------- APK (only when needed) ----------------
       - uses: actions/setup-java@v4
+        if: steps.plan.outputs.apk == 'true'
         with:
           distribution: temurin
           java-version: 21
 
       # Keeps the same signing key between builds, so a new APK installs over the old one.
       - name: Restore signing key
+        if: steps.plan.outputs.apk == 'true'
         uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
           key: android-debug-keystore-v1
 
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
-
-      - name: Prepare web files
-        run: npm run mobile:prepare
-
       - name: Create Android project
+        if: steps.plan.outputs.apk == 'true'
         run: npx cap add android
 
       # Adaptive + legacy icon and splash screen, from mobile/resources
       # (icon-foreground, icon-background, splash, splash-dark).
       - name: App icon and splash
+        if: steps.plan.outputs.apk == 'true'
         run: |
           npx --yes @capacitor/assets@4 generate --android --assetPath mobile/resources
           # Fail if Capacitor's default logo is still the adaptive icon.
@@ -69,29 +118,50 @@ jobs:
             echo "Adaptive icon was not generated" && exit 1
           fi
           rm -f android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml
-          cat android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          # Transparent icon (only the logo, no colored plate), like the site's favicon.
+          for f in android/app/src/main/res/mipmap-anydpi-v26/ic_launcher*.xml; do
+            sed -i -E 's#<background android:drawable="[^"]*"#<background android:drawable="@android:color/transparent"#' "$f"
+            cat "$f"
+          done
 
       - name: Version number
+        if: steps.plan.outputs.apk == 'true'
         run: |
-          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]+\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          sed -i -E "s/versionCode [0-9]+/versionCode $BUILD/; s/versionName \"[^\"]+\"/versionName \"1.0.$BUILD\"/" android/app/build.gradle
           grep -E "versionCode|versionName" android/app/build.gradle
 
       - name: Sync
+        if: steps.plan.outputs.apk == 'true'
         run: npx cap sync android
 
       - name: Build APK
+        if: steps.plan.outputs.apk == 'true'
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../open-teamwork.apk
 
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Publish APK
+        if: steps.plan.outputs.apk == 'true'
         run: |
           gh release delete android-latest --yes --cleanup-tag || true
           gh release create android-latest open-teamwork.apk \
-            --title "Open Teamwork para Android (1.0.${{ github.run_number }})" \
+            --title "Open Teamwork para Android (1.0.$BUILD)" \
             --notes "APK gerado automaticamente a partir do commit ${GITHUB_SHA::7}. Baixe o arquivo open-teamwork.apk no celular e abra para instalar (o Android pede para permitir a instalação de fontes desconhecidas)." \
-            --target "$GITHUB_SHA"
+            --target "$GITHUB_SHA" \
+            --latest
+
+      # ---------------- Pages (every run) ----------------
+      # New zip first, then version.json pointing to it, then old zips are removed.
+      - name: Publish pages bundle
+        run: |
+          gh release view android-web >/dev/null 2>&1 || gh release create android-web \
+            --title "Open Teamwork para Android: páginas (atualização automática)" \
+            --notes "Usado pelo próprio app para se atualizar sozinho. Para instalar, use o release android-latest." \
+            --target "$GITHUB_SHA" --latest=false
+          gh release upload android-web "web-$BUILD.zip" --clobber
+          gh release upload android-web version.json --clobber
+          gh release view android-web --json assets -q '.assets[].name' \
+            | grep -E '^web-[0-9]+\.zip$' | grep -vx "web-$BUILD.zip" \
+            | xargs -r -n1 gh release delete-asset android-web --yes

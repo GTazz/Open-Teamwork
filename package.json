@@ -28,6 +28,8 @@
   "devDependencies": {
     "@capacitor/android": "^8.6.2",
     "@capacitor/cli": "^8.6.2",
-    "@capacitor/core": "^8.6.2"
+    "@capacitor/core": "^8.6.2",
+    "@capgo/capacitor-updater": "^8.54.2",
+    "otw-apk-installer": "file:mobile/apk-installer"
   }
 }

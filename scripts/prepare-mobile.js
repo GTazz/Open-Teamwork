@@ -27,4 +27,20 @@ fs.rmSync(target, { recursive: true, force: true });
 ['assets', 'js', 'pages', 'icons'].forEach(directory => copyDirectory(path.join(root, directory), path.join(target, directory)));
 fs.copyFileSync(path.join(root, 'index.html'), path.join(target, 'index.html'));
 
+// Mandatory update check (js/app-update.js) on every page, with this APK's build
+// number. The APK workflow sets APP_BUILD; local builds without it skip the check.
+const build = Number(process.env.APP_BUILD) || 0;
+if (build) {
+  const pages = [path.join(target, 'index.html'), ...fs.readdirSync(path.join(target, 'pages'))
+    .filter(file => file.endsWith('.html'))
+    .map(file => path.join(target, 'pages', file))];
+  for (const page of pages) {
+    const src = path.dirname(page) === target ? './js/app-update.js' : '../js/app-update.js';
+    const html = fs.readFileSync(page, 'utf8');
+    if (!html.includes('</head>')) throw new Error(`Sem </head>: ${page}`);
+    fs.writeFileSync(page, html.replace('</head>', `  <script src="${src}" data-build="${build}"></script>\n  </head>`));
+  }
+  console.log(`Verificação de atualização ativada (build ${build}).`);
+}
+
 console.log('Pasta www/ pronta. Próximo passo: npx cap sync');
