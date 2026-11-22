@@ -118,11 +118,7 @@ jobs:
             echo "Adaptive icon was not generated" && exit 1
           fi
           rm -f android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml
-          # Transparent icon (only the logo, no colored plate), like the site's favicon.
-          for f in android/app/src/main/res/mipmap-anydpi-v26/ic_launcher*.xml; do
-            sed -i -E 's#<background android:drawable="[^"]*"#<background android:drawable="@android:color/transparent"#' "$f"
-            cat "$f"
-          done
+          cat android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
 
       - name: Version number
         if: steps.plan.outputs.apk == 'true'
