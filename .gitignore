@@ -5,9 +5,9 @@ data/*.sqlite-shm
 data/*.sqlite-wal
 .env
 # app mobile (gerado por "npm run mobile:prepare")
-www/
-android/
-ios/
+/www/
+/android/
+/ios/
 .DS_Store
 temp/
 .vscode/
