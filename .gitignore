@@ -12,3 +12,8 @@ data/*.sqlite-wal
 temp/
 .vscode/
 .playwright-mcp/
+# chave de assinatura do APK: só o exemplo vai para o repositório
+/signing/*
+!/signing/signing.env.example
+*.jks
+*.keystore

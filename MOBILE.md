@@ -16,6 +16,10 @@ que mude o site. Para gerar na hora: aba **Actions → Android APK → Run workf
   em **Run workflow → Gerar um APK novo**. Apps com APK mais antigo ficam bloqueados por uma tela
   cheia; o botão baixa o APK dentro do app (`mobile/apk-installer`) e abre o instalador do Android.
 - O servidor informa as versões em `/api/app/android` (consulta o GitHub a cada 5 minutos).
+- **Assinatura:** todo APK é assinado com a mesma chave fixa (`signing/`, fora do git; modelo em
+  `signing/signing.env.example`). `npm run mobile:secrets` envia a chave para os secrets do GitHub
+  usados pelo workflow. **Guarde um backup da pasta `signing/`:** sem a mesma chave, o Android não
+  instala a atualização por cima e todos precisam desinstalar e instalar de novo.
 
 O projeto já está preparado de duas formas. Comece pela primeira (grátis e imediata).
 

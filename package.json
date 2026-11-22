@@ -9,7 +9,8 @@
     "dev": "node --watch server.js",
     "db:migrate": "node server.js --migrate",
     "test": "node --test",
-    "mobile:prepare": "node scripts/prepare-mobile.js"
+    "mobile:prepare": "node scripts/prepare-mobile.js",
+    "mobile:secrets": "node scripts/upload-signing-secrets.js"
   },
   "dependencies": {
     "@libsql/client": "^0.15.0",
