@@ -83,8 +83,10 @@ jobs:
         run: |
           (cd www && zip -qr "../web-$BUILD.zip" .)
           CHECKSUM=$(sha256sum "web-$BUILD.zip" | cut -d' ' -f1)
-          printf '{"webBuild":%s,"minNativeBuild":%s,"checksum":"%s","file":"web-%s.zip"}\n' \
-            "$BUILD" "${{ steps.plan.outputs.native_build }}" "$CHECKSUM" "$BUILD" > version.json
+          # The pages need the latest APK's plugins, so minNativeBuild = apkBuild.
+          NATIVE="${{ steps.plan.outputs.native_build }}"
+          printf '{"webBuild":%s,"minNativeBuild":%s,"apkBuild":%s,"checksum":"%s","file":"web-%s.zip"}\n' \
+            "$BUILD" "$NATIVE" "$NATIVE" "$CHECKSUM" "$BUILD" > version.json
           cat version.json
 
       # ---------------- APK (only when needed) ----------------

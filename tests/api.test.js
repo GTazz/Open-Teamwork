@@ -617,34 +617,23 @@ test('admin: login separado e exclusão em cascata de perfis e projetos', async 
 test('app Android: último APK e últimas páginas publicados no GitHub', async () => {
   const realFetch = globalThis.fetch;
   const checksum = 'a'.repeat(64);
-  const responses = {
-    'https://api.github.com/repos/GTazz/Open-Teamwork/releases/tags/android-latest': {
-      name: 'Open Teamwork para Android (1.0.42)',
-      assets: [{ name: 'open-teamwork.apk', state: 'uploaded', browser_download_url: 'https://example.com/open-teamwork.apk' }],
-    },
-    'https://api.github.com/repos/GTazz/Open-Teamwork/releases/tags/android-web': {
-      assets: [
-        { name: 'version.json', state: 'uploaded', browser_download_url: 'https://example.com/version.json' },
-        { name: 'web-45.zip', state: 'uploaded', browser_download_url: 'https://example.com/web-45.zip' },
-      ],
-    },
-    'https://example.com/version.json': { webBuild: 45, minNativeBuild: 42, checksum, file: 'web-45.zip' },
-  };
+  const downloads = 'https://github.com/GTazz/Open-Teamwork/releases/download';
   let githubCalls = 0;
   globalThis.fetch = (url, options) => {
-    if (!(url in responses)) return realFetch(url, options);
+    if (url !== `${downloads}/android-web/version.json`) return realFetch(url, options);
     githubCalls += 1;
-    return Promise.resolve(new Response(JSON.stringify(responses[url]), { status: 200 }));
+    const version = { webBuild: 45, minNativeBuild: 42, apkBuild: 42, checksum, file: 'web-45.zip' };
+    return Promise.resolve(new Response(JSON.stringify(version), { status: 200 }));
   };
   try {
     const first = await api('/api/app/android');
     assert.equal(first.status, 200);
     assert.deepEqual(first.body, {
-      apk: { build: 42, url: 'https://example.com/open-teamwork.apk' },
-      web: { build: 45, minNativeBuild: 42, checksum, url: 'https://example.com/web-45.zip' },
+      apk: { build: 42, url: `${downloads}/android-latest/open-teamwork.apk` },
+      web: { build: 45, minNativeBuild: 42, checksum, url: `${downloads}/android-web/web-45.zip` },
     });
     await api('/api/app/android');
-    assert.equal(githubCalls, 3, 'respostas do GitHub ficam em cache');
+    assert.equal(githubCalls, 1, 'resposta do GitHub fica em cache');
   } finally {
     globalThis.fetch = realFetch;
   }
